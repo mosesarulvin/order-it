@@ -224,7 +224,7 @@ export default function CheckoutPage() {
     )
   }
 
-  if (shopOpen === false) {
+  if (shopOpen === false && !items.every((ci) => ci.menu_item.is_instant)) {
     return (
       <div className="min-h-screen flex items-center justify-center p-8 text-center bg-gray-50">
         <div>
