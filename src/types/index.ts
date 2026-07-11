@@ -78,6 +78,7 @@ export interface Order {
   is_anonymous: boolean
   coupon_code: string | null
   order_source: 'qr' | 'walkin'
+  customer_profile_id: string | null
   created_at: string
   updated_at: string
   items?: OrderItem[]
@@ -126,6 +127,7 @@ export interface Coupon {
   shop_id: string
   code: string
   type: 'percentage' | 'amount'
+  coupon_type: 'general' | 'new_user' | 'birthday' | 'promotion'
   value: number
   min_order_amount: number
   max_uses: number | null
@@ -144,4 +146,26 @@ export interface Review {
   rating: number
   comment: string | null
   created_at: string
+}
+
+export interface CustomerProfile {
+  id: string
+  shop_id: string
+  name: string
+  phone: string
+  email: string | null
+  birthday: string | null
+  created_at: string
+}
+
+export interface ProfileCoupon {
+  id: string
+  profile_id: string
+  shop_id: string
+  coupon_id: string | null
+  coupon_code: string
+  label: string
+  assigned_at: string
+  used_at: string | null
+  used_order_id: string | null
 }

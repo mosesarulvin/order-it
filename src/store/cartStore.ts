@@ -7,7 +7,9 @@ interface CartStore {
   shopSlug: string | null
   addItem: (item: MenuItem, customizations?: { group: string; choice: string }[]) => void
   removeItem: (itemId: string) => void
+  removeItemAt: (index: number) => void
   updateQuantity: (itemId: string, quantity: number) => void
+  updateQuantityAt: (index: number, quantity: number) => void
   clearCart: () => void
   setShopSlug: (slug: string) => void
   getTotalItems: () => number
@@ -42,10 +44,24 @@ export const useCartStore = create<CartStore>()(
         })
       },
 
+      // removeItem: removes first matching by itemId (no-customization items)
       removeItem: (itemId: string) => {
-        set((state) => ({
-          items: state.items.filter((i) => i.menu_item.id !== itemId),
-        }))
+        set((state) => {
+          const idx = state.items.findIndex((i) => i.menu_item.id === itemId && i.customizations.length === 0)
+          if (idx === -1) return state
+          const items = [...state.items]
+          items.splice(idx, 1)
+          return { items }
+        })
+      },
+
+      // removeItemAt: removes by exact cart row index (safe for customized duplicates)
+      removeItemAt: (index: number) => {
+        set((state) => {
+          const items = [...state.items]
+          items.splice(index, 1)
+          return { items }
+        })
       },
 
       updateQuantity: (itemId: string, quantity: number) => {
@@ -53,11 +69,26 @@ export const useCartStore = create<CartStore>()(
           get().removeItem(itemId)
           return
         }
-        set((state) => ({
-          items: state.items.map((i) =>
-            i.menu_item.id === itemId ? { ...i, quantity } : i
-          ),
-        }))
+        set((state) => {
+          const idx = state.items.findIndex((i) => i.menu_item.id === itemId && i.customizations.length === 0)
+          if (idx === -1) return state
+          const items = [...state.items]
+          items[idx] = { ...items[idx], quantity }
+          return { items }
+        })
+      },
+
+      // updateQuantityAt: update by exact cart row index (safe for customized duplicates)
+      updateQuantityAt: (index: number, quantity: number) => {
+        if (quantity <= 0) {
+          get().removeItemAt(index)
+          return
+        }
+        set((state) => {
+          const items = [...state.items]
+          items[index] = { ...items[index], quantity }
+          return { items }
+        })
       },
 
       clearCart: () => set({ items: [], shopSlug: null }),

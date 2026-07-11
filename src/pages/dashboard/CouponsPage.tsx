@@ -14,9 +14,17 @@ import { Skeleton } from '@/components/ui/Skeleton'
 import type { Coupon } from '@/types'
 import toast from 'react-hot-toast'
 
+const COUPON_TYPES = [
+  { value: 'general',   label: 'General',           badge: '' },
+  { value: 'new_user',  label: 'New User Welcome',   badge: '🎁' },
+  { value: 'birthday',  label: 'Birthday',           badge: '🎂' },
+  { value: 'promotion', label: 'Promotion',          badge: '📣' },
+] as const
+
 const couponSchema = z.object({
   code: z.string().min(2, 'Code required').toUpperCase(),
   type: z.enum(['percentage', 'amount']),
+  coupon_type: z.enum(['general', 'new_user', 'birthday', 'promotion']),
   value: z.number().min(0.01, 'Value must be > 0'),
   min_order_amount: z.number().min(0).optional(),
   max_uses: z.number().int().min(1).nullable().optional(),
@@ -31,7 +39,7 @@ export default function CouponsPage() {
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState<{ open: boolean; editing?: Coupon }>({ open: false })
 
-  const form = useForm<CouponForm>({ resolver: zodResolver(couponSchema), defaultValues: { type: 'percentage', min_order_amount: 0, max_uses: null } })
+  const form = useForm<CouponForm>({ resolver: zodResolver(couponSchema), defaultValues: { type: 'percentage', coupon_type: 'general', min_order_amount: 0, max_uses: null } })
 
   useEffect(() => {
     if (shop) fetchCoupons()
@@ -50,7 +58,7 @@ export default function CouponsPage() {
   }
 
   const openAdd = () => {
-    form.reset({ code: '', type: 'percentage', value: 10, min_order_amount: 0, max_uses: null, expires_at: '' })
+    form.reset({ code: '', type: 'percentage', coupon_type: 'general', value: 10, min_order_amount: 0, max_uses: null, expires_at: '' })
     setModal({ open: true })
   }
 
@@ -58,6 +66,7 @@ export default function CouponsPage() {
     form.reset({
       code: coupon.code,
       type: coupon.type,
+      coupon_type: coupon.coupon_type ?? 'general',
       value: coupon.value,
       min_order_amount: coupon.min_order_amount ?? 0,
       max_uses: coupon.max_uses ?? null,
@@ -72,6 +81,7 @@ export default function CouponsPage() {
       shop_id: shop.id,
       code: data.code.toUpperCase().trim(),
       type: data.type,
+      coupon_type: data.coupon_type,
       value: data.value,
       min_order_amount: data.min_order_amount ?? 0,
       max_uses: data.max_uses ?? null,
@@ -93,8 +103,14 @@ export default function CouponsPage() {
   }
 
   const toggleActive = async (coupon: Coupon) => {
-    await supabase.from('coupons').update({ is_active: !coupon.is_active }).eq('id', coupon.id)
+    // Optimistic update
     setCoupons((prev) => prev.map((c) => c.id === coupon.id ? { ...c, is_active: !c.is_active } : c))
+    const { error } = await supabase.from('coupons').update({ is_active: !coupon.is_active }).eq('id', coupon.id)
+    if (error) {
+      // Rollback on failure
+      setCoupons((prev) => prev.map((c) => c.id === coupon.id ? { ...c, is_active: coupon.is_active } : c))
+      toast.error('Failed to update coupon status')
+    }
   }
 
   const formatExpiry = (ts: string | null) => {
@@ -137,6 +153,7 @@ export default function CouponsPage() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-bold text-gray-900 font-mono tracking-wide">{coupon.code}</span>
+                    {(() => { const ct = COUPON_TYPES.find(t => t.value === coupon.coupon_type); return ct && ct.badge ? <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium">{ct.badge} {ct.label}</span> : null })()}
                     <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full font-semibold">
                       {coupon.type === 'percentage' ? `${coupon.value}% off` : `${formatCurrency(coupon.value)} off`}
                     </span>
@@ -178,6 +195,19 @@ export default function CouponsPage() {
             error={form.formState.errors.code?.message}
             {...form.register('code')}
           />
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">Coupon purpose</label>
+            <div className="grid grid-cols-2 gap-2">
+              {COUPON_TYPES.map((ct) => (
+                <label key={ct.value} className={`flex items-center gap-2 p-2.5 rounded-xl border-2 cursor-pointer transition-all ${
+                  form.watch('coupon_type') === ct.value ? 'border-orange-400 bg-orange-50' : 'border-gray-200'
+                }`}>
+                  <input type="radio" value={ct.value} {...form.register('coupon_type')} className="sr-only" />
+                  <span className="text-sm font-medium">{ct.badge} {ct.label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">Discount type</label>
             <div className="flex gap-3">

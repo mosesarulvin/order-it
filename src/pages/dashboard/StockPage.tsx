@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
 import { Skeleton } from '@/components/ui/Skeleton'
+import { formatDate } from '@/lib/utils'
 import type { MenuItem, StockLog } from '@/types'
 import toast from 'react-hot-toast'
 
@@ -98,9 +99,6 @@ export default function StockPage() {
     setAdjustModal(null)
     fetchItems()
   }
-
-  const formatDate = (ts: string) =>
-    new Date(ts).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
 
   return (
     <div className="space-y-6 max-w-4xl">

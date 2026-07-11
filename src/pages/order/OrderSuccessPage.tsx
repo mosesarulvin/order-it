@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { CheckCircle, Clock, ChefHat, Bell, ArrowLeft, Share2, ShoppingBag, XCircle, AlertCircle, Star } from 'lucide-react'
+import { CheckCircle, Clock, ChefHat, Bell, ArrowLeft, Share2, ShoppingBag, XCircle, AlertCircle, Star, Gift } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { formatCurrency } from '@/lib/utils'
 import type { Order } from '@/types'
@@ -32,6 +32,7 @@ export default function OrderSuccessPage() {
   const [fetchError, setFetchError] = useState(false)
   const [reviewsEnabled, setReviewsEnabled] = useState(false)
   const [hasReviewed, setHasReviewed] = useState(false)
+  const [hasProfile, setHasProfile] = useState(false)
   const channelRef = useRef<RealtimeChannel | null>(null)
 
   // Save order ID with timestamp to recent orders in localStorage
@@ -83,6 +84,9 @@ export default function OrderSuccessPage() {
       // Check localStorage to see if already reviewed
       const reviewed = localStorage.getItem(`review-${orderId}`)
       if (reviewed) setHasReviewed(true)
+      // Check if customer has a profile
+      const profileId = localStorage.getItem(`profile-${slug}`)
+      if (profileId) setHasProfile(true)
       // Unsubscribe once order reaches a terminal state — no more updates expected
       if (TERMINAL_STATUSES.has(data.status)) {
         channelRef.current?.unsubscribe()
@@ -307,6 +311,25 @@ export default function OrderSuccessPage() {
               className="mt-1 w-full py-2.5 rounded-xl bg-amber-500 text-white text-sm font-semibold hover:bg-amber-600 active:scale-[0.98] transition-all"
             >
               Leave a Review
+            </button>
+          </div>
+        )}
+
+        {/* Profile creation banner — shown for non-anonymous orders without a profile */}
+        {!order.is_anonymous && !hasProfile && (
+          <div className="bg-gradient-to-r from-orange-50 to-amber-50 rounded-2xl border border-orange-200 p-4 flex items-center gap-3">
+            <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center flex-shrink-0">
+              <Gift size={20} className="text-orange-500" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-gray-900 text-sm">Get exclusive offers</p>
+              <p className="text-xs text-gray-500 mt-0.5">Create a profile to get a welcome discount &amp; see your order history</p>
+            </div>
+            <button
+              onClick={() => navigate(`/order/${slug}/profile`)}
+              className="flex-shrink-0 px-3 py-1.5 rounded-xl bg-orange-500 text-white text-xs font-semibold hover:bg-orange-600 transition-colors"
+            >
+              Join
             </button>
           </div>
         )}

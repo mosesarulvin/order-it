@@ -35,7 +35,7 @@ export default function CheckoutPage() {
   const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null)
   const [couponLoading, setCouponLoading] = useState(false)
   const orderPlacedRef = useRef(false)
-  const { items, updateQuantity, removeItem, getTotalPrice, clearCart } = useCartStore()
+  const { items, updateQuantityAt, removeItemAt, getTotalPrice, clearCart } = useCartStore()
 
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(baseSchema),
@@ -49,6 +49,53 @@ export default function CheckoutPage() {
         if (data) { setShopId(data.id); setTaxPercent(data.tax_percent); setShopOpen(data.is_open); setCouponsEnabled(data.coupons_enabled ?? true) }
         else { setShopOpen(false) }
       })
+  }, [slug])
+
+  // Auto-apply profile welcome coupon if customer has a profile with an unused coupon
+  useEffect(() => {
+    if (!slug) return
+    if (appliedCoupon) return
+    const profileId = localStorage.getItem(`profile-${slug}`)
+    // Check for a coupon hint set by "Use Now" on ProfileDashboardPage
+    const pendingCoupon = localStorage.getItem(`pending-coupon-${slug}`)
+    const couponCodeToApply = pendingCoupon || null
+
+    const applyCode = (code: string) => {
+      if (!shopId) return
+      supabase
+        .from('coupons')
+        .select('*')
+        .eq('code', code)
+        .eq('shop_id', shopId)
+        .eq('is_active', true)
+        .maybeSingle()
+        .then(({ data: coupon }) => {
+          if (coupon) {
+            setCouponInput(coupon.code)
+            setAppliedCoupon(coupon as import('@/types').Coupon)
+            if (pendingCoupon) localStorage.removeItem(`pending-coupon-${slug}`)
+          }
+        })
+    }
+
+    if (couponCodeToApply) {
+      applyCode(couponCodeToApply)
+      return
+    }
+
+    if (!profileId) return
+    supabase
+      .from('profile_coupons')
+      .select('coupon_code, coupon_id')
+      .eq('profile_id', profileId)
+      .is('used_at', null)
+      .limit(1)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!data?.coupon_code) return
+        applyCode(data.coupon_code)
+      })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug])
 
   // Redirect to menu if cart is empty (e.g. direct URL access)
@@ -98,6 +145,17 @@ export default function CheckoutPage() {
     if (items.length === 0) { toast.error('Your cart is empty'); return }
     if (!shopId) { toast.error('Shop not found'); return }
 
+    // Re-validate coupon min_order_amount at submit time (cart may have changed since coupon applied)
+    if (appliedCoupon) {
+      const currentSubtotal = getTotalPrice()
+      if (currentSubtotal < appliedCoupon.min_order_amount) {
+        toast.error(`Coupon requires a minimum order of ${formatCurrency(appliedCoupon.min_order_amount)}`)
+        setAppliedCoupon(null)
+        setCouponInput('')
+        return
+      }
+    }
+
     // Phone validation when not anonymous
     if (!isAnonymous) {
       const phone = data.customer_phone || ''
@@ -140,6 +198,8 @@ export default function CheckoutPage() {
 
       const orderNumber = generateOrderNumber()
 
+      const profileId = localStorage.getItem(`profile-${slug}`)
+
       const { data: order, error: orderErr } = await supabase
         .from('orders')
         .insert({
@@ -152,11 +212,13 @@ export default function CheckoutPage() {
           payment_method: paymentMethod,
           payment_status: 'pending',
           is_anonymous: isAnonymous,
+          order_source: 'qr',
           coupon_code: appliedCoupon?.code ?? null,
           discount_amount: discountAmount,
           subtotal,
           tax_amount: taxAmount,
           total,
+          customer_profile_id: profileId || null,
         })
         .select()
         .single()
@@ -202,6 +264,17 @@ export default function CheckoutPage() {
           .from('coupons')
           .update({ used_count: appliedCoupon.used_count + 1 })
           .eq('id', appliedCoupon.id)
+
+        // Mark profile coupon as used if it came from a profile
+        const profileId = localStorage.getItem(`profile-${slug}`)
+        if (profileId) {
+          await supabase
+            .from('profile_coupons')
+            .update({ used_at: new Date().toISOString(), used_order_id: order.id })
+            .eq('profile_id', profileId)
+            .eq('coupon_code', appliedCoupon.code)
+            .is('used_at', null)
+        }
       }
 
       orderPlacedRef.current = true
@@ -298,23 +371,23 @@ export default function CheckoutPage() {
                   )}
                   <p className="text-sm font-semibold text-orange-600 mt-0.5">{formatCurrency(ci.menu_item.price)}</p>
                 </div>
-                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2">
                   <div className="flex items-center gap-1.5 bg-gray-50 rounded-xl p-1">
                     <button
-                      onClick={() => updateQuantity(ci.menu_item.id, ci.quantity - 1)}
+                      onClick={() => updateQuantityAt(idx, ci.quantity - 1)}
                       className="w-6 h-6 flex items-center justify-center rounded-lg bg-white text-gray-500 shadow-sm text-xs"
                     >
                       <Minus size={12} />
                     </button>
                     <span className="w-4 text-center text-sm font-bold">{ci.quantity}</span>
                     <button
-                      onClick={() => updateQuantity(ci.menu_item.id, ci.quantity + 1)}
+                      onClick={() => updateQuantityAt(idx, ci.quantity + 1)}
                       className="w-6 h-6 flex items-center justify-center rounded-lg bg-orange-500 text-white shadow-sm text-xs"
                     >
                       <Plus size={12} />
                     </button>
                   </div>
-                  <button onClick={() => removeItem(ci.menu_item.id)} className="p-1.5 text-gray-300 hover:text-red-400 transition-colors">
+                  <button onClick={() => removeItemAt(idx)} className="p-1.5 text-gray-300 hover:text-red-400 transition-colors">
                     <Trash2 size={14} />
                   </button>
                 </div>

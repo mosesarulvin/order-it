@@ -11,6 +11,7 @@ import StockPage from '@/pages/dashboard/StockPage'
 import CouponsPage from '@/pages/dashboard/CouponsPage'
 import ReviewsPage from '@/pages/dashboard/ReviewsPage'
 import WalkInPage from '@/pages/dashboard/WalkInPage'
+import CustomersPage from '@/pages/dashboard/CustomersPage'
 import LoginPage from '@/pages/auth/LoginPage'
 import RegisterPage from '@/pages/auth/RegisterPage'
 import ForgotPasswordPage from '@/pages/auth/ForgotPasswordPage'
@@ -19,6 +20,8 @@ import OrderMenuPage from '@/pages/order/OrderMenuPage'
 import CheckoutPage from '@/pages/order/CheckoutPage'
 import OrderSuccessPage from '@/pages/order/OrderSuccessPage'
 import ReviewPage from '@/pages/order/ReviewPage'
+import ProfilePage from '@/pages/order/ProfilePage'
+import ProfileDashboardPage from '@/pages/order/ProfileDashboardPage'
 import NotFoundPage from '@/pages/NotFoundPage'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -54,6 +57,8 @@ export default function App() {
       <Route path="/order/:slug/checkout" element={<CheckoutPage />} />
       <Route path="/order/:slug/success/:orderId" element={<OrderSuccessPage />} />
       <Route path="/order/:slug/review/:orderId" element={<ReviewPage />} />
+      <Route path="/order/:slug/profile" element={<ProfilePage />} />
+      <Route path="/order/:slug/profile/:profileId" element={<ProfileDashboardPage />} />
 
       {/* Auth */}
       <Route path="/login" element={<AuthRoute><LoginPage /></AuthRoute>} />
@@ -69,6 +74,7 @@ export default function App() {
       <Route path="/dashboard/stock" element={<ProtectedRoute><DashboardLayout><StockPage /></DashboardLayout></ProtectedRoute>} />
       <Route path="/dashboard/coupons" element={<ProtectedRoute><DashboardLayout><CouponsPage /></DashboardLayout></ProtectedRoute>} />
       <Route path="/dashboard/reviews" element={<ProtectedRoute><DashboardLayout><ReviewsPage /></DashboardLayout></ProtectedRoute>} />
+      <Route path="/dashboard/customers" element={<ProtectedRoute><DashboardLayout><CustomersPage /></DashboardLayout></ProtectedRoute>} />
       <Route path="/dashboard/walkin" element={<ProtectedRoute><DashboardLayout><WalkInPage /></DashboardLayout></ProtectedRoute>} />
       <Route path="/dashboard/qr" element={<ProtectedRoute><DashboardLayout><QRCodePage /></DashboardLayout></ProtectedRoute>} />
       <Route path="/dashboard/settings" element={<ProtectedRoute><DashboardLayout><SettingsPage /></DashboardLayout></ProtectedRoute>} />

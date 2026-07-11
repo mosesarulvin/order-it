@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard,
@@ -15,6 +15,7 @@ import {
   Tag,
   Star,
   UserPlus,
+  Users,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/contexts/AuthContext'
@@ -30,6 +31,7 @@ const navItems = [
   { icon: UserPlus, label: 'Walk-in', to: '/dashboard/walkin' },
   { icon: Package, label: 'Stock', to: '/dashboard/stock' },
   { icon: Tag, label: 'Coupons', to: '/dashboard/coupons' },
+  { icon: Users, label: 'Customers', to: '/dashboard/customers' },
   { icon: Star, label: 'Reviews', to: '/dashboard/reviews' },
   { icon: QrCode, label: 'QR Code', to: '/dashboard/qr' },
   { icon: Settings, label: 'Settings', to: '/dashboard/settings' },
@@ -40,7 +42,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const location = useLocation()
   const navigate = useNavigate()
   const [mobileOpen, setMobileOpen] = useState(false)
-  const scheduleRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // Auto-schedule: check open/close times and update is_open in DB every minute
   useEffect(() => {
@@ -58,10 +59,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
     checkSchedule()
     const interval = setInterval(checkSchedule, 60_000)
-    scheduleRef.current = interval
     return () => clearInterval(interval)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shop?.id, shop?.auto_schedule_enabled, shop?.auto_open_time, shop?.auto_close_time])
+  }, [shop?.id, shop?.auto_schedule_enabled, shop?.auto_open_time, shop?.auto_close_time, shop?.is_open, refreshShop])
 
   const handleSignOut = async () => {
     await signOut()

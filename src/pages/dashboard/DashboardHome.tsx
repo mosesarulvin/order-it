@@ -65,8 +65,8 @@ export default function DashboardHome() {
       const all = statsRes.data
       const todayOrders = all.filter((o) => new Date(o.created_at) >= today)
       // Exclude cancelled orders from revenue — they were never fulfilled
-      const revenueOrders = all.filter((o) => o.status !== 'cancelled')
-      const todayRevenueOrders = todayOrders.filter((o) => o.status !== 'cancelled')
+      const revenueOrders = all.filter((o) => o.status !== 'cancelled' && o.payment_status === 'paid')
+      const todayRevenueOrders = todayOrders.filter((o) => o.status !== 'cancelled' && o.payment_status === 'paid')
       setStats({
         total_orders: all.length,
         pending_orders: all.filter((o) => ['pending', 'confirmed', 'preparing'].includes(o.status)).length,
@@ -88,7 +88,7 @@ export default function DashboardHome() {
       icon: TrendingUp,
       color: 'text-green-600',
       bg: 'bg-green-50',
-      sub: 'All paid orders today',
+      sub: 'Paid orders today',
     },
     {
       label: 'Total Orders',
@@ -258,6 +258,9 @@ export default function DashboardHome() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="font-semibold text-gray-900 text-sm">{order.order_number}</span>
+                      {order.order_source === 'walkin' && (
+                        <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-indigo-100 text-indigo-700">Walk-in</span>
+                      )}
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${getOrderStatusColor(order.status)}`}>
                         {getOrderStatusLabel(order.status)}
                       </span>

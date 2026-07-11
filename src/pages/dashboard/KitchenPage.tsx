@@ -328,6 +328,9 @@ export default function KitchenPage() {
                           <div className="flex items-start justify-between">
                             <div>
                               <p className="font-bold text-gray-900">{order.order_number}</p>
+                              {order.order_source === 'walkin' && (
+                                <span className="text-xs px-1.5 py-0.5 rounded-full font-medium bg-indigo-100 text-indigo-700 inline-block mt-0.5">Walk-in</span>
+                              )}
                               <p className="text-xs text-gray-500 mt-0.5">{order.customer_name}</p>
                               {order.is_anonymous
                                 ? <p className="text-xs text-blue-500 mt-0.5">🔒 Anonymous</p>

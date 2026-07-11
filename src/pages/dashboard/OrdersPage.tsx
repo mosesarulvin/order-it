@@ -92,6 +92,19 @@ export default function OrdersPage() {
     if (selected?.id === orderId) setSelected((prev) => prev ? { ...prev, payment_status: 'paid' } : prev)
   }
 
+  const markAsUnpaid = async (orderId: string) => {
+    setOrders((prev) => prev.map((o) => o.id === orderId ? { ...o, payment_status: 'pending' } : o))
+    if (selected?.id === orderId) setSelected((prev) => prev ? { ...prev, payment_status: 'pending' } : prev)
+    const { error } = await supabase.from('orders').update({ payment_status: 'pending' }).eq('id', orderId)
+    if (error) {
+      toast.error(error.message)
+      setOrders((prev) => prev.map((o) => o.id === orderId ? { ...o, payment_status: 'paid' } : o))
+      if (selected?.id === orderId) setSelected((prev) => prev ? { ...prev, payment_status: 'paid' } : prev)
+      return
+    }
+    toast.success('Payment undone')
+  }
+
   const filtered = orders.filter((o) => {
     const matchSearch = o.order_number.toLowerCase().includes(search.toLowerCase()) ||
       o.customer_name.toLowerCase().includes(search.toLowerCase()) ||
@@ -164,11 +177,14 @@ export default function OrdersPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-semibold text-gray-900 text-sm">{order.order_number}</span>
+                      {order.order_source === 'walkin' && (
+                        <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-indigo-100 text-indigo-700">Walk-in</span>
+                      )}
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${getOrderStatusColor(order.status)}`}>
                         {getOrderStatusLabel(order.status)}
                       </span>
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${getPaymentStatusColor(order.payment_status)}`}>
-                        {order.payment_status}
+                        {order.payment_status === 'paid' ? 'Paid' : order.payment_status === 'failed' ? 'Failed' : 'Unpaid'}
                       </span>
                     </div>
                     <p className="text-xs text-gray-500 mt-0.5">
@@ -190,7 +206,7 @@ export default function OrdersPage() {
       <Modal
         open={!!selected}
         onClose={() => setSelected(null)}
-        title={`Order ${selected?.order_number}`}
+        title={`Order ${selected?.order_number}${selected?.order_source === 'walkin' ? ' · Walk-in' : ''}`}
         size="md"
       >
         {selected && (
@@ -255,19 +271,26 @@ export default function OrdersPage() {
               </div>
               <div className="flex-1 bg-gray-50 rounded-xl p-3 text-center">
                 <p className="text-xs text-gray-500">Payment Status</p>
-                <p className={`font-semibold capitalize ${selected.payment_status === 'paid' ? 'text-green-600' : 'text-yellow-600'}`}>
-                  {selected.payment_status === 'paid' ? '✓ Paid' : 'Pending'}
+                <p className={`font-semibold ${selected.payment_status === 'paid' ? 'text-green-600' : selected.payment_status === 'failed' ? 'text-red-600' : 'text-yellow-600'}`}>
+                  {selected.payment_status === 'paid' ? '✓ Paid' : selected.payment_status === 'failed' ? '✗ Failed' : 'Unpaid'}
                 </p>
               </div>
             </div>
 
-            {/* Mark as paid — for cash orders that haven't been paid yet */}
-            {selected.payment_status !== 'paid' && (
+            {/* Payment action buttons */}
+            {selected.payment_status !== 'paid' ? (
               <button
                 onClick={() => markAsPaid(selected.id)}
                 className="w-full py-2 rounded-xl text-sm font-semibold bg-green-50 text-green-700 hover:bg-green-100 transition-all border border-green-200"
               >
                 ✓ Mark as Paid
+              </button>
+            ) : selected.payment_method === 'cash' && (
+              <button
+                onClick={() => markAsUnpaid(selected.id)}
+                className="w-full py-2 rounded-xl text-sm font-semibold bg-gray-50 text-gray-500 hover:bg-gray-100 transition-all border border-gray-200"
+              >
+                ↩ Undo Payment
               </button>
             )}
 

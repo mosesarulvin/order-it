@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Star, MessageSquare } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
+import { formatDate } from '@/lib/utils'
 import type { Review } from '@/types'
 
 function StarRow({ rating, size = 14 }: { rating: number; size?: number }) {
@@ -16,10 +17,6 @@ function StarRow({ rating, size = 14 }: { rating: number; size?: number }) {
       ))}
     </div>
   )
-}
-
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
 export default function ReviewsPage() {

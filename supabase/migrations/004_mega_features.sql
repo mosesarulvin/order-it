@@ -32,6 +32,7 @@ create index if not exists stock_logs_created_idx on stock_logs(created_at desc)
 
 alter table stock_logs enable row level security;
 
+drop policy if exists "Owners manage their stock logs" on stock_logs;
 create policy "Owners manage their stock logs"
   on stock_logs for all using (
     exists (select 1 from shops where shops.id = stock_logs.shop_id and shops.owner_id = auth.uid())
@@ -58,11 +59,13 @@ create index if not exists coupons_shop_idx on coupons(shop_id);
 alter table coupons enable row level security;
 
 -- Owners can fully manage their coupons
+drop policy if exists "Owners manage their coupons" on coupons;
 create policy "Owners manage their coupons"
   on coupons for all using (
     exists (select 1 from shops where shops.id = coupons.shop_id and shops.owner_id = auth.uid())
   );
 
 -- Public (unauthenticated) can read active coupons for validation at checkout
+drop policy if exists "Public can read active coupons" on coupons;
 create policy "Public can read active coupons"
   on coupons for select using (is_active = true);

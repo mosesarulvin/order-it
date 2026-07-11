@@ -31,12 +31,14 @@ CREATE TABLE IF NOT EXISTS reviews (
 ALTER TABLE reviews ENABLE ROW LEVEL SECURITY;
 
 -- Shop owners can view all reviews for their shop
+DROP POLICY IF EXISTS "owners_read_reviews" ON reviews;
 CREATE POLICY "owners_read_reviews" ON reviews
   FOR SELECT USING (
     shop_id IN (SELECT id FROM shops WHERE owner_id = auth.uid())
   );
 
 -- Anyone (customers) can insert a review
+DROP POLICY IF EXISTS "public_insert_reviews" ON reviews;
 CREATE POLICY "public_insert_reviews" ON reviews
   FOR INSERT WITH CHECK (true);
 
