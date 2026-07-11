@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Search, Filter, ShoppingBag, ChevronDown } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
@@ -9,8 +9,17 @@ import { Skeleton } from '@/components/ui/Skeleton'
 import { Modal } from '@/components/ui/Modal'
 import type { Order, OrderStatus } from '@/types'
 import toast from 'react-hot-toast'
+import type { RealtimeChannel } from '@supabase/supabase-js'
 
 const STATUS_OPTIONS: OrderStatus[] = ['pending', 'confirmed', 'preparing', 'ready', 'completed', 'cancelled']
+
+// Only allow the next logical step — prevents jumping from pending straight to completed
+const NEXT_STATUS: Partial<Record<OrderStatus, OrderStatus[]>> = {
+  pending:   ['confirmed', 'cancelled'],
+  confirmed: ['preparing', 'cancelled'],
+  preparing: ['ready', 'cancelled'],
+  ready:     ['completed'],
+}
 
 export default function OrdersPage() {
   const { shop } = useAuth()
@@ -19,19 +28,35 @@ export default function OrdersPage() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<OrderStatus | 'all'>('all')
   const [selected, setSelected] = useState<Order | null>(null)
+  const channelRef = useRef<RealtimeChannel | null>(null)
 
   useEffect(() => {
-    if (shop) fetchOrders()
+    if (!shop) return
+    fetchOrders()
+    subscribeToOrders()
+    return () => { channelRef.current?.unsubscribe() }
   }, [shop])
 
-  const fetchOrders = async () => {
+  const subscribeToOrders = () => {
     if (!shop) return
-    setLoading(true)
-    const { data } = await supabase
+    const channel = supabase
+      .channel(`orders-${shop.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `shop_id=eq.${shop.id}` }, () => {
+        fetchOrders(true)  // silent — no skeleton flash
+      })
+      .subscribe()
+    channelRef.current = channel
+  }
+
+  const fetchOrders = async (silent = false) => {
+    if (!shop) return
+    if (!silent) setLoading(true)
+    const { data, error } = await supabase
       .from('orders')
       .select('*, items:order_items(*)')
       .eq('shop_id', shop.id)
       .order('created_at', { ascending: false })
+    if (error) { toast.error('Failed to load orders'); console.error(error.message) }
     setOrders((data as Order[]) || [])
     setLoading(false)
   }
@@ -42,6 +67,14 @@ export default function OrdersPage() {
     toast.success(`Order marked as ${status}`)
     setOrders((prev) => prev.map((o) => o.id === orderId ? { ...o, status } : o))
     if (selected?.id === orderId) setSelected((prev) => prev ? { ...prev, status } : prev)
+  }
+
+  const markAsPaid = async (orderId: string) => {
+    const { error } = await supabase.from('orders').update({ payment_status: 'paid' }).eq('id', orderId)
+    if (error) { toast.error(error.message); return }
+    toast.success('Marked as paid ✓')
+    setOrders((prev) => prev.map((o) => o.id === orderId ? { ...o, payment_status: 'paid' } : o))
+    if (selected?.id === orderId) setSelected((prev) => prev ? { ...prev, payment_status: 'paid' } : prev)
   }
 
   const filtered = orders.filter((o) => {
@@ -57,7 +90,11 @@ export default function OrdersPage() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Orders</h2>
-          <p className="text-sm text-gray-500 mt-0.5">{orders.length} total orders</p>
+          <p className="text-sm text-gray-500 mt-0.5">
+            {filtered.length < orders.length
+              ? `Showing ${filtered.length} of ${orders.length} orders`
+              : `${orders.length} total orders`}
+          </p>
         </div>
       </div>
 
@@ -181,22 +218,32 @@ export default function OrdersPage() {
             <div className="flex gap-3">
               <div className="flex-1 bg-gray-50 rounded-xl p-3 text-center">
                 <p className="text-xs text-gray-500">Payment</p>
-                <p className="font-semibold text-gray-900 capitalize">{selected.payment_method}</p>
+                <p className="font-semibold text-gray-900 capitalize">{selected.payment_method === 'cash' ? '💵 Cash' : '📱 UPI'}</p>
               </div>
               <div className="flex-1 bg-gray-50 rounded-xl p-3 text-center">
                 <p className="text-xs text-gray-500">Payment Status</p>
                 <p className={`font-semibold capitalize ${selected.payment_status === 'paid' ? 'text-green-600' : 'text-yellow-600'}`}>
-                  {selected.payment_status}
+                  {selected.payment_status === 'paid' ? '✓ Paid' : 'Pending'}
                 </p>
               </div>
             </div>
+
+            {/* Mark as paid — for cash orders that haven't been paid yet */}
+            {selected.payment_status !== 'paid' && (
+              <button
+                onClick={() => markAsPaid(selected.id)}
+                className="w-full py-2 rounded-xl text-sm font-semibold bg-green-50 text-green-700 hover:bg-green-100 transition-all border border-green-200"
+              >
+                ✓ Mark as Paid
+              </button>
+            )}
 
             {/* Status update */}
             {!['completed', 'cancelled'].includes(selected.status) && (
               <div>
                 <p className="text-sm font-medium text-gray-700 mb-2">Update status</p>
                 <div className="flex flex-wrap gap-2">
-                  {STATUS_OPTIONS.filter((s) => s !== selected.status && s !== 'pending').map((s) => (
+                  {(NEXT_STATUS[selected.status] ?? []).map((s) => (
                     <button
                       key={s}
                       onClick={() => updateStatus(selected.id, s)}

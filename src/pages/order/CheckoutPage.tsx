@@ -1,9 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { ArrowLeft, Minus, Plus, Trash2, User, Phone, Wallet, Banknote, ChevronRight, ShoppingBag } from 'lucide-react'
+import { ArrowLeft, Minus, Plus, Trash2, User, Phone, Wallet, Banknote, ChevronRight, ShoppingBag, Clock } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { formatCurrency, generateOrderNumber } from '@/lib/utils'
 import { useCartStore } from '@/store/cartStore'
@@ -14,8 +14,11 @@ import toast from 'react-hot-toast'
 
 const schema = z.object({
   customer_name: z.string().min(2, 'Enter your name'),
-  customer_phone: z.string().min(10, 'Enter a valid phone number'),
-  notes: z.string().optional(),
+  customer_phone: z.string()
+    .min(10, 'Enter a valid 10-digit phone number')
+    .max(10, 'Phone number must be 10 digits')
+    .regex(/^[6-9]\d{9}$/, 'Enter a valid Indian mobile number'),
+  notes: z.string().max(200, 'Notes must be 200 characters or less').optional(),
 })
 
 type FormData = z.infer<typeof schema>
@@ -25,49 +28,74 @@ export default function CheckoutPage() {
   const navigate = useNavigate()
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash')
   const [loading, setLoading] = useState(false)
+  const [shopId, setShopId] = useState<string | null>(null)
+  const [taxPercent, setTaxPercent] = useState(0)
+  // null = loading, true/false = resolved
+  const [shopOpen, setShopOpen] = useState<boolean | null>(null)
   const { items, updateQuantity, removeItem, getTotalPrice, clearCart } = useCartStore()
 
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
   })
 
+  // Fetch shop tax upfront so the displayed total is accurate
+  useEffect(() => {
+    if (!slug) return
+    supabase.from('shops').select('id, tax_percent, is_open').eq('slug', slug).single()
+      .then(({ data }) => {
+        if (data) { setShopId(data.id); setTaxPercent(data.tax_percent); setShopOpen(data.is_open) }
+        else { setShopOpen(false) }
+      })
+  }, [slug])
+
+  // Redirect to menu if cart is empty (e.g. direct URL access or after clearing)
+  useEffect(() => {
+    if (items.length === 0 && slug) {
+      navigate(`/order/${slug}`, { replace: true })
+    }
+  }, [items.length, slug, navigate])
+
   const subtotal = getTotalPrice()
-  const taxPercent = 0 // will be fetched from shop in production
   const taxAmount = Math.round(subtotal * taxPercent) / 100
   const total = subtotal + taxAmount
 
   const onSubmit = async (data: FormData) => {
     if (items.length === 0) { toast.error('Your cart is empty'); return }
+    if (!shopId) { toast.error('Shop not found'); return }
     setLoading(true)
 
     try {
-      // Get shop id from slug
-      const { data: shopData, error: shopErr } = await supabase
-        .from('shops')
-        .select('id, tax_percent')
-        .eq('slug', slug!)
-        .single()
+      // Re-validate all cart items are still available
+      const itemIds = items.map((ci) => ci.menu_item.id)
+      const { data: menuItems, error: availErr } = await supabase
+        .from('menu_items')
+        .select('id, is_available, name')
+        .in('id', itemIds)
+      if (availErr) throw new Error('Could not verify item availability')
+      const unavailable = (menuItems ?? []).filter((m) => !m.is_available)
+      if (unavailable.length > 0) {
+        const names = unavailable.map((m) => m.name).join(', ')
+        toast.error(`Some items are no longer available: ${names}. Please update your cart.`)
+        setLoading(false)
+        return
+      }
 
-      if (shopErr || !shopData) throw new Error('Shop not found')
-
-      const actualTax = Math.round(subtotal * shopData.tax_percent) / 100
-      const actualTotal = subtotal + actualTax
       const orderNumber = generateOrderNumber()
 
       const { data: order, error: orderErr } = await supabase
         .from('orders')
         .insert({
-          shop_id: shopData.id,
+          shop_id: shopId,
           order_number: orderNumber,
           customer_name: data.customer_name,
           customer_phone: data.customer_phone,
           notes: data.notes || null,
           status: 'pending',
           payment_method: paymentMethod,
-          payment_status: paymentMethod === 'cash' ? 'pending' : 'pending',
+          payment_status: 'pending',
           subtotal,
-          tax_amount: actualTax,
-          total: actualTotal,
+          tax_amount: taxAmount,
+          total,
         })
         .select()
         .single()
@@ -95,6 +123,32 @@ export default function CheckoutPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  // Still loading shop info — show spinner instead of the form
+  if (shopOpen === null) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="w-10 h-10 border-4 border-orange-200 border-t-orange-500 rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  if (shopOpen === false) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-8 text-center bg-gray-50">
+        <div>
+          <div className="w-20 h-20 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Clock size={40} className="text-orange-500" />
+          </div>
+          <h2 className="text-xl font-bold text-gray-900">Shop is currently closed</h2>
+          <p className="text-sm text-gray-500 mt-1">Orders are not being accepted right now.</p>
+          <button onClick={() => navigate(`/order/${slug}`)} className="mt-4 text-orange-600 font-medium">
+            ← Back to menu
+          </button>
+        </div>
+      </div>
+    )
   }
 
   if (items.length === 0) {

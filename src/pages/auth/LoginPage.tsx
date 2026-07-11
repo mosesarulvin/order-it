@@ -90,6 +90,12 @@ export default function LoginPage() {
             <Button type="submit" className="w-full" size="lg" loading={loading}>
               Sign in
             </Button>
+
+            <div className="text-right">
+              <Link to="/forgot-password" className="text-xs text-gray-400 hover:text-orange-600 transition-colors">
+                Forgot password?
+              </Link>
+            </div>
           </form>
 
           <p className="text-center text-sm text-gray-500 mt-6">

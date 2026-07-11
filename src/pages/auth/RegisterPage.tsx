@@ -35,7 +35,7 @@ export default function RegisterPage() {
     setLoading(true)
     try {
       await signUp(data.email, data.password, data.shopName)
-      toast.success('Account created! Please verify your email.')
+      toast.success('Shop created! Welcome to OrderIt 🎉')
       navigate('/dashboard')
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message

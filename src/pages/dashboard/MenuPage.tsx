@@ -117,6 +117,18 @@ export default function MenuPage() {
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast.error('Only image files are allowed (JPG, PNG, WEBP, etc.)')
+      e.target.value = ''
+      return
+    }
+    // Validate file size (max 3MB)
+    if (file.size > 3 * 1024 * 1024) {
+      toast.error('Image must be smaller than 3MB')
+      e.target.value = ''
+      return
+    }
     setPendingImageFile(file)
     setImagePreview(URL.createObjectURL(file))
   }

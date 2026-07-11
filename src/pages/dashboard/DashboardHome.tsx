@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { TrendingUp, ShoppingBag, Clock, CheckCircle, ArrowRight, UtensilsCrossed, Flame } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
@@ -7,16 +7,27 @@ import { formatCurrency, formatTime, getOrderStatusColor, getOrderStatusLabel } 
 import { Card, CardContent } from '@/components/ui/Card'
 import { Skeleton } from '@/components/ui/Skeleton'
 import type { Order, DashboardStats } from '@/types'
+import type { RealtimeChannel } from '@supabase/supabase-js'
 
 export default function DashboardHome() {
   const { shop } = useAuth()
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [recentOrders, setRecentOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
+  const channelRef = useRef<RealtimeChannel | null>(null)
 
   useEffect(() => {
     if (!shop) return
     fetchData()
+    // Subscribe to order changes so stats update live
+    const channel = supabase
+      .channel(`dashboard-${shop.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `shop_id=eq.${shop.id}` }, () => {
+        fetchData()
+      })
+      .subscribe()
+    channelRef.current = channel
+    return () => { channel.unsubscribe() }
   }, [shop])
 
   const fetchData = async () => {
@@ -26,11 +37,16 @@ export default function DashboardHome() {
     const today = new Date()
     today.setHours(0, 0, 0, 0)
 
+    // Limit revenue stats to last 90 days to keep query fast at scale
+    const ninetyDaysAgo = new Date()
+    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90)
+
     const [statsRes, ordersRes] = await Promise.all([
       supabase
         .from('orders')
         .select('total, status, created_at')
-        .eq('shop_id', shop.id),
+        .eq('shop_id', shop.id)
+        .gte('created_at', ninetyDaysAgo.toISOString()),
       supabase
         .from('orders')
         .select('*, items:order_items(*)')
@@ -42,11 +58,14 @@ export default function DashboardHome() {
     if (statsRes.data) {
       const all = statsRes.data
       const todayOrders = all.filter((o) => new Date(o.created_at) >= today)
+      // Exclude cancelled orders from revenue — they were never fulfilled
+      const revenueOrders = all.filter((o) => o.status !== 'cancelled')
+      const todayRevenueOrders = todayOrders.filter((o) => o.status !== 'cancelled')
       setStats({
         total_orders: all.length,
         pending_orders: all.filter((o) => ['pending', 'confirmed', 'preparing'].includes(o.status)).length,
-        today_revenue: todayOrders.reduce((s, o) => s + o.total, 0),
-        total_revenue: all.reduce((s, o) => s + o.total, 0),
+        today_revenue: todayRevenueOrders.reduce((s, o) => s + o.total, 0),
+        total_revenue: revenueOrders.reduce((s, o) => s + o.total, 0),
       })
     }
 
@@ -85,7 +104,7 @@ export default function DashboardHome() {
       icon: CheckCircle,
       color: 'text-purple-600',
       bg: 'bg-purple-50',
-      sub: 'All time',
+      sub: 'Last 90 days',
     },
   ]
 

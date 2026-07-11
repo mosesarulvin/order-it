@@ -35,7 +35,8 @@ export function generateOrderNumber(): string {
   const now = new Date()
   const prefix = 'ORD'
   const timestamp = now.getTime().toString().slice(-6)
-  return `${prefix}-${timestamp}`
+  const random = Math.random().toString(36).slice(2, 5).toUpperCase()
+  return `${prefix}-${timestamp}-${random}`
 }
 
 export function slugify(text: string): string {

@@ -21,6 +21,7 @@ const STATUS_FLOW: Record<string, { next: OrderStatus; label: string; color: str
 
 const STATUS_COLUMNS: { key: OrderStatus; label: string; icon: React.ElementType; color: string }[] = [
   { key: 'pending', label: 'New Orders', icon: Bell, color: 'text-yellow-500' },
+  { key: 'confirmed', label: 'Confirmed', icon: CheckCircle, color: 'text-blue-500' },
   { key: 'preparing', label: 'Preparing', icon: ChefHat, color: 'text-orange-500' },
   { key: 'ready', label: 'Ready', icon: CheckCircle, color: 'text-green-500' },
 ]
@@ -42,9 +43,9 @@ export default function KitchenPage() {
     }
   }, [shop])
 
-  const fetchOrders = async () => {
+  const fetchOrders = async (silent = false) => {
     if (!shop) return
-    setLoading(true)
+    if (!silent) setLoading(true)
     const { data, error } = await supabase
       .from('orders')
       .select('*, items:order_items(*)')
@@ -62,11 +63,11 @@ export default function KitchenPage() {
       .channel(`kitchen-${shop.id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `shop_id=eq.${shop.id}` }, (payload) => {
         if (payload.eventType === 'INSERT') {
-          fetchOrders()
+          fetchOrders(true)  // silent refresh — no skeleton
           playNotification()
           toast('🛎️ New order received!', { icon: '🔔', style: { fontWeight: '600' } })
         } else if (payload.eventType === 'UPDATE') {
-          fetchOrders()
+          fetchOrders(true)  // silent refresh
         }
       })
       .subscribe()
@@ -108,6 +109,13 @@ export default function KitchenPage() {
     toast.success('Order cancelled')
   }
 
+  const markAsPaid = async (orderId: string) => {
+    const { error } = await supabase.from('orders').update({ payment_status: 'paid' }).eq('id', orderId)
+    if (error) { toast.error(error.message); return }
+    toast.success('Marked as paid ✓')
+    setOrders((prev) => prev.map((o) => o.id === orderId ? { ...o, payment_status: 'paid' } : o))
+  }
+
   const getElapsedMinutes = (createdAt: string) => {
     return Math.floor((Date.now() - new Date(createdAt).getTime()) / 60000)
   }
@@ -124,16 +132,16 @@ export default function KitchenPage() {
             <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
             <span className="text-xs font-medium text-green-700">Live</span>
           </div>
-          <Button variant="outline" size="sm" onClick={fetchOrders}>
+          <Button variant="outline" size="sm" onClick={() => fetchOrders()}>
             <RefreshCw size={14} className="mr-1.5" /> Refresh
           </Button>
         </div>
       </div>
 
       {/* Summary strip */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-4 gap-3">
         {STATUS_COLUMNS.map(({ key, label, icon: Icon, color }) => {
-          const count = orders.filter((o) => o.status === key || (key === 'preparing' && o.status === 'confirmed')).length
+          const count = orders.filter((o) => o.status === key).length
           return (
             <Card key={key}>
               <CardContent className="p-4 flex items-center gap-3">
@@ -149,11 +157,9 @@ export default function KitchenPage() {
       </div>
 
       {/* Kanban columns */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {STATUS_COLUMNS.map(({ key, label, icon: Icon, color }) => {
-          const colOrders = orders.filter((o) =>
-            key === 'preparing' ? o.status === 'preparing' || o.status === 'confirmed' : o.status === key
-          )
+          const colOrders = orders.filter((o) => o.status === key)
           return (
             <div key={key}>
               <div className="flex items-center gap-2 mb-3">
@@ -187,6 +193,7 @@ export default function KitchenPage() {
                             <div>
                               <p className="font-bold text-gray-900">{order.order_number}</p>
                               <p className="text-xs text-gray-500 mt-0.5">{order.customer_name}</p>
+                              <p className="text-xs text-gray-400 mt-0.5">📞 {order.customer_phone}</p>
                             </div>
                             <div className="text-right">
                               <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${isUrgent ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'}`}>
@@ -228,6 +235,16 @@ export default function KitchenPage() {
                               Cancel
                             </button>
                           </div>
+
+                          {/* Mark cash as paid */}
+                          {order.payment_method === 'cash' && order.payment_status !== 'paid' && (
+                            <button
+                              onClick={() => markAsPaid(order.id)}
+                              className="w-full py-1.5 rounded-xl text-xs font-semibold bg-green-50 text-green-700 hover:bg-green-100 transition-colors border border-green-200"
+                            >
+                              ✓ Mark as Paid
+                            </button>
+                          )}
                         </CardContent>
                       </Card>
                     )

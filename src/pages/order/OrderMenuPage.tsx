@@ -1,11 +1,13 @@
 import { useEffect, useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Plus, Minus, Search, Star, Clock, ChevronRight, UtensilsCrossed } from 'lucide-react'
+import { Plus, Minus, Search, Star, Clock, ChevronRight, UtensilsCrossed, ClipboardList } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { formatCurrency } from '@/lib/utils'
 import { useCartStore } from '@/store/cartStore'
 import { MenuItemSkeleton } from '@/components/ui/Skeleton'
 import type { Shop, MenuCategory, MenuItem } from '@/types'
+
+const LAST_ORDER_KEY = (slug: string) => `orderit-last-order-${slug}`
 
 export default function OrderMenuPage() {
   const { slug } = useParams<{ slug: string }>()
@@ -16,12 +18,27 @@ export default function OrderMenuPage() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [activeCategory, setActiveCategory] = useState<string | null>(null)
+  const [lastOrderId, setLastOrderId] = useState<string | null>(null)
   const categoryRefs = useRef<Record<string, HTMLDivElement>>({})
 
-  const { items: cartItems, addItem, updateQuantity, getTotalItems, getTotalPrice, setShopSlug } = useCartStore()
+  const { items: cartItems, addItem, updateQuantity, getTotalItems, getTotalPrice, setShopSlug, shopSlug, clearCart } = useCartStore()
 
   useEffect(() => {
     if (slug) fetchShopData()
+  }, [slug])
+
+  // Clear cart automatically when customer scans a different shop's QR
+  useEffect(() => {
+    if (slug && shopSlug && shopSlug !== slug) {
+      clearCart()
+    }
+  }, [slug, shopSlug])
+
+  useEffect(() => {
+    if (slug) {
+      const saved = localStorage.getItem(LAST_ORDER_KEY(slug))
+      if (saved) setLastOrderId(saved)
+    }
   }, [slug])
 
   const fetchShopData = async () => {
@@ -134,10 +151,25 @@ export default function OrderMenuPage() {
               className="w-full h-10 pl-9 pr-4 rounded-xl bg-white text-sm text-gray-900 placeholder:text-gray-400 outline-none"
             />
           </div>
+
+          {/* Track last order */}
+          {lastOrderId && (
+            <button
+              onClick={() => navigate(`/order/${slug}/success/${lastOrderId}`)}
+              className="mt-3 w-full flex items-center justify-between gap-2 px-4 py-2.5 bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded-xl transition-all"
+            >
+              <div className="flex items-center gap-2">
+                <ClipboardList size={16} className="text-white" />
+                <span className="text-white text-sm font-medium">Track your last order</span>
+              </div>
+              <ChevronRight size={16} className="text-white/70" />
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Category pills */}
+      {/* Category pills — hidden while searching */}
+      {!search && (
       <div className="sticky top-0 z-10 bg-white border-b border-gray-100 shadow-sm">
         <div className="max-w-lg mx-auto">
           <div className="flex gap-2 overflow-x-auto px-4 py-3 no-scrollbar" style={{ scrollbarWidth: 'none' }}>
@@ -161,6 +193,7 @@ export default function OrderMenuPage() {
           </div>
         </div>
       </div>
+      )}
 
       {/* Menu */}
       <div className="max-w-lg mx-auto px-4 pt-4 space-y-8">
@@ -168,8 +201,18 @@ export default function OrderMenuPage() {
           <div className="space-y-3">
             {Array.from({ length: 6 }).map((_, i) => <MenuItemSkeleton key={i} />)}
           </div>
-        ) : (
-          categories.map((cat) => {
+        ) : (() => {
+          const hasAnyResults = categories.some((cat) => filteredItems(cat.id).length > 0)
+          if (!hasAnyResults) {
+            return (
+              <div className="py-20 text-center">
+                <p className="text-4xl mb-3">🔍</p>
+                <p className="font-semibold text-gray-700">No items found</p>
+                <p className="text-sm text-gray-400 mt-1">Try a different search term</p>
+              </div>
+            )
+          }
+          return categories.map((cat) => {
             const catItems = filteredItems(cat.id)
             if (catItems.length === 0) return null
             return (
@@ -238,7 +281,7 @@ export default function OrderMenuPage() {
               </div>
             )
           })
-        )}
+        })()}
       </div>
 
       {/* Floating cart button */}

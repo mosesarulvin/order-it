@@ -9,9 +9,12 @@ import QRCodePage from '@/pages/dashboard/QRCodePage'
 import SettingsPage from '@/pages/dashboard/SettingsPage'
 import LoginPage from '@/pages/auth/LoginPage'
 import RegisterPage from '@/pages/auth/RegisterPage'
+import ForgotPasswordPage from '@/pages/auth/ForgotPasswordPage'
+import ResetPasswordPage from '@/pages/auth/ResetPasswordPage'
 import OrderMenuPage from '@/pages/order/OrderMenuPage'
 import CheckoutPage from '@/pages/order/CheckoutPage'
 import OrderSuccessPage from '@/pages/order/OrderSuccessPage'
+import NotFoundPage from '@/pages/NotFoundPage'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -49,6 +52,8 @@ export default function App() {
       {/* Auth */}
       <Route path="/login" element={<AuthRoute><LoginPage /></AuthRoute>} />
       <Route path="/register" element={<AuthRoute><RegisterPage /></AuthRoute>} />
+      <Route path="/forgot-password" element={<AuthRoute><ForgotPasswordPage /></AuthRoute>} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
 
       {/* Dashboard */}
       <Route path="/dashboard" element={<ProtectedRoute><DashboardLayout><DashboardHome /></DashboardLayout></ProtectedRoute>} />
@@ -60,7 +65,7 @@ export default function App() {
 
       {/* Default */}
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      <Route path="*" element={<NotFoundPage />} />
     </Routes>
   )
 }
