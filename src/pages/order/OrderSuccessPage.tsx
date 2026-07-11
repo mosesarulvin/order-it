@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { CheckCircle, Clock, ChefHat, Bell, ArrowLeft, Share2, ShoppingBag, XCircle, AlertCircle } from 'lucide-react'
+import { CheckCircle, Clock, ChefHat, Bell, ArrowLeft, Share2, ShoppingBag, XCircle, AlertCircle, Star } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { formatCurrency } from '@/lib/utils'
 import type { Order } from '@/types'
@@ -14,8 +14,12 @@ const STATUS_STEPS = [
   { key: 'ready', label: 'Ready for Pickup', icon: ShoppingBag },
 ]
 
-// Persist last order per shop in localStorage so customers can recover it
-const STORAGE_KEY = (slug: string) => `orderit-last-order-${slug}`
+// Persist recent orders per shop in localStorage (max 3) so customers can track them
+const ORDERS_KEY = (slug: string) => `orderit-orders-${slug}`
+const MAX_RECENT_ORDERS = 3
+const TTL_MS = 24 * 60 * 60 * 1000 // 24 hours
+
+type StoredOrder = { id: string; savedAt: number }
 
 // Statuses where polling should stop
 const TERMINAL_STATUSES = new Set(['cancelled', 'completed', 'ready'])
@@ -26,13 +30,20 @@ export default function OrderSuccessPage() {
   const [order, setOrder] = useState<Order | null>(null)
   const [loading, setLoading] = useState(true)
   const [fetchError, setFetchError] = useState(false)
+  const [reviewsEnabled, setReviewsEnabled] = useState(false)
+  const [hasReviewed, setHasReviewed] = useState(false)
   const channelRef = useRef<RealtimeChannel | null>(null)
 
-  // Save order ID to localStorage on mount
+  // Save order ID with timestamp to recent orders in localStorage
   useEffect(() => {
-    if (slug && orderId) {
-      localStorage.setItem(STORAGE_KEY(slug), orderId)
-    }
+    if (!slug || !orderId) return
+    const saved = localStorage.getItem(ORDERS_KEY(slug))
+    const entries: StoredOrder[] = saved ? JSON.parse(saved) : []
+    const now = Date.now()
+    // Drop expired entries and add this order at the front
+    const fresh = entries.filter((e) => now - e.savedAt < TTL_MS && e.id !== orderId)
+    const updated = [{ id: orderId, savedAt: now }, ...fresh].slice(0, MAX_RECENT_ORDERS)
+    localStorage.setItem(ORDERS_KEY(slug), JSON.stringify(updated))
   }, [slug, orderId])
 
   useEffect(() => {
@@ -66,6 +77,12 @@ export default function OrderSuccessPage() {
     if (data) {
       setOrder(data as Order)
       setFetchError(false)
+      // Fetch shop reviews_enabled flag
+      supabase.from('shops').select('reviews_enabled').eq('id', data.shop_id).single()
+        .then(({ data: sd }) => { if (sd) setReviewsEnabled(sd.reviews_enabled ?? false) })
+      // Check localStorage to see if already reviewed
+      const reviewed = localStorage.getItem(`review-${orderId}`)
+      if (reviewed) setHasReviewed(true)
       // Unsubscribe once order reaches a terminal state — no more updates expected
       if (TERMINAL_STATUSES.has(data.status)) {
         channelRef.current?.unsubscribe()
@@ -181,7 +198,13 @@ export default function OrderSuccessPage() {
           <div className="bg-red-50 border border-red-200 rounded-2xl p-4 text-center">
             <XCircle size={32} className="text-red-400 mx-auto mb-2" />
             <p className="text-red-700 font-semibold text-sm">This order has been cancelled</p>
-            <p className="text-red-500 text-xs mt-1">Please contact the shop or place a new order</p>
+            {order.cancellation_reason ? (
+              <p className="text-red-500 text-xs mt-1.5 bg-red-100 rounded-xl px-3 py-2">
+                <span className="font-medium">Reason:</span> {order.cancellation_reason}
+              </p>
+            ) : (
+              <p className="text-red-500 text-xs mt-1">Please contact the shop or place a new order</p>
+            )}
             <button
               onClick={() => navigate(`/order/${slug}`)}
               className="mt-3 inline-flex items-center gap-2 px-4 py-2 bg-orange-500 text-white text-sm font-semibold rounded-xl hover:bg-orange-600 transition-all"
@@ -267,7 +290,24 @@ export default function OrderSuccessPage() {
         {!isCancelled && !isCompleted && !isReady && (
           <div className="flex items-center gap-2 bg-blue-50 rounded-xl p-3 border border-blue-100">
             <Clock size={14} className="text-blue-500 flex-shrink-0" />
-            <p className="text-xs text-blue-700">This page updates automatically every 15 seconds.</p>
+            <p className="text-xs text-blue-700">This page updates live — no need to refresh.</p>
+          </div>
+        )}
+
+        {/* Review prompt — shown when order is ready/completed and reviews are enabled */}
+        {reviewsEnabled && (isReady || isCompleted) && !hasReviewed && (
+          <div className="bg-white rounded-2xl border border-gray-100 p-4 text-center space-y-2">
+            <div className="flex justify-center gap-1">
+              {[1,2,3,4,5].map((s) => <Star key={s} size={22} className="text-amber-400 fill-amber-400" />)}
+            </div>
+            <p className="font-semibold text-gray-900 text-sm">How was your experience?</p>
+            <p className="text-xs text-gray-400">Your feedback helps us improve</p>
+            <button
+              onClick={() => navigate(`/order/${slug}/review/${orderId}`)}
+              className="mt-1 w-full py-2.5 rounded-xl bg-amber-500 text-white text-sm font-semibold hover:bg-amber-600 active:scale-[0.98] transition-all"
+            >
+              Leave a Review
+            </button>
           </div>
         )}
 

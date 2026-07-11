@@ -5,7 +5,7 @@ import type { CartItem, MenuItem } from '@/types'
 interface CartStore {
   items: CartItem[]
   shopSlug: string | null
-  addItem: (item: MenuItem) => void
+  addItem: (item: MenuItem, customizations?: { group: string; choice: string }[]) => void
   removeItem: (itemId: string) => void
   updateQuantity: (itemId: string, quantity: number) => void
   clearCart: () => void
@@ -20,19 +20,25 @@ export const useCartStore = create<CartStore>()(
       items: [],
       shopSlug: null,
 
-      addItem: (menuItem: MenuItem) => {
+      addItem: (menuItem: MenuItem, customizations: { group: string; choice: string }[] = []) => {
         set((state) => {
-          const existing = state.items.find((i) => i.menu_item.id === menuItem.id)
+          // Items with customizations are always added as separate entries
+          if (customizations.length > 0) {
+            return { items: [...state.items, { menu_item: menuItem, quantity: 1, customizations }] }
+          }
+          const existing = state.items.find(
+            (i) => i.menu_item.id === menuItem.id && i.customizations.length === 0
+          )
           if (existing) {
             return {
               items: state.items.map((i) =>
-                i.menu_item.id === menuItem.id
+                i.menu_item.id === menuItem.id && i.customizations.length === 0
                   ? { ...i, quantity: i.quantity + 1 }
                   : i
               ),
             }
           }
-          return { items: [...state.items, { menu_item: menuItem, quantity: 1 }] }
+          return { items: [...state.items, { menu_item: menuItem, quantity: 1, customizations: [] }] }
         })
       },
 

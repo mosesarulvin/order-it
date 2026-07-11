@@ -1,18 +1,19 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { TrendingUp, ShoppingBag, Clock, CheckCircle, ArrowRight, UtensilsCrossed, Flame } from 'lucide-react'
+import { TrendingUp, ShoppingBag, Clock, CheckCircle, ArrowRight, UtensilsCrossed, Flame, Package } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { formatCurrency, formatTime, getOrderStatusColor, getOrderStatusLabel } from '@/lib/utils'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Skeleton } from '@/components/ui/Skeleton'
-import type { Order, DashboardStats } from '@/types'
+import type { MenuItem, Order, DashboardStats } from '@/types'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 
 export default function DashboardHome() {
   const { shop } = useAuth()
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [recentOrders, setRecentOrders] = useState<Order[]>([])
+  const [lowStockItems, setLowStockItems] = useState<MenuItem[]>([])
   const [loading, setLoading] = useState(true)
   const channelRef = useRef<RealtimeChannel | null>(null)
 
@@ -41,7 +42,7 @@ export default function DashboardHome() {
     const ninetyDaysAgo = new Date()
     ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90)
 
-    const [statsRes, ordersRes] = await Promise.all([
+    const [statsRes, ordersRes, lowStockRes] = await Promise.all([
       supabase
         .from('orders')
         .select('total, status, created_at')
@@ -53,6 +54,11 @@ export default function DashboardHome() {
         .eq('shop_id', shop.id)
         .order('created_at', { ascending: false })
         .limit(5),
+      supabase
+        .from('menu_items')
+        .select('*')
+        .eq('shop_id', shop.id)
+        .not('stock_quantity', 'is', null),
     ])
 
     if (statsRes.data) {
@@ -70,6 +76,8 @@ export default function DashboardHome() {
     }
 
     setRecentOrders((ordersRes.data as Order[]) || [])
+    const allTracked = (lowStockRes.data as MenuItem[]) || []
+    setLowStockItems(allTracked.filter((i) => i.stock_quantity !== null && i.stock_quantity <= i.low_stock_threshold))
     setLoading(false)
   }
 
@@ -186,6 +194,37 @@ export default function DashboardHome() {
           </Card>
         </Link>
       </div>
+
+      {/* Low stock alert */}
+      {!loading && lowStockItems.length > 0 && (
+        <Card className="border-orange-200 bg-orange-50">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <Package size={16} className="text-orange-600" />
+                <span className="font-semibold text-orange-900 text-sm">Low Stock Alert</span>
+                <span className="text-xs bg-orange-200 text-orange-800 px-1.5 py-0.5 rounded-full">{lowStockItems.length}</span>
+              </div>
+              <Link to="/dashboard/stock" className="text-xs text-orange-600 hover:text-orange-700 font-medium flex items-center gap-0.5">
+                Manage <ArrowRight size={12} />
+              </Link>
+            </div>
+            <div className="space-y-1.5">
+              {lowStockItems.slice(0, 5).map((item) => (
+                <div key={item.id} className="flex items-center justify-between text-sm">
+                  <span className="text-gray-700">{item.name}</span>
+                  <span className={`font-semibold ${item.stock_quantity === 0 ? 'text-red-600' : 'text-orange-600'}`}>
+                    {item.stock_quantity === 0 ? 'Out of stock' : `${item.stock_quantity} left`}
+                  </span>
+                </div>
+              ))}
+              {lowStockItems.length > 5 && (
+                <p className="text-xs text-orange-600">+{lowStockItems.length - 5} more items low on stock</p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Recent orders */}
       <div>

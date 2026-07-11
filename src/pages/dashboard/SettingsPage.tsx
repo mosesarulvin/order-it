@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Store, Phone, DollarSign, Globe } from 'lucide-react'
+import { Store, Phone, DollarSign, Globe, Clock, Tag, Star, Zap } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/Button'
@@ -18,6 +18,11 @@ const schema = z.object({
   address: z.string().optional(),
   tax_percent: z.number().min(0).max(100),
   is_open: z.boolean(),
+  coupons_enabled: z.boolean(),
+  reviews_enabled: z.boolean(),
+  auto_schedule_enabled: z.boolean(),
+  auto_open_time: z.string().optional(),
+  auto_close_time: z.string().optional(),
 })
 
 type FormData = z.infer<typeof schema>
@@ -35,10 +40,16 @@ export default function SettingsPage() {
       address: shop?.address || '',
       tax_percent: shop?.tax_percent || 0,
       is_open: shop?.is_open ?? true,
+      coupons_enabled: shop?.coupons_enabled ?? true,
+      reviews_enabled: shop?.reviews_enabled ?? true,
+      auto_schedule_enabled: shop?.auto_schedule_enabled ?? false,
+      auto_open_time: shop?.auto_open_time || '',
+      auto_close_time: shop?.auto_close_time || '',
     },
   })
 
   const isOpen = watch('is_open')
+  const autoSchedule = watch('auto_schedule_enabled')
 
   // Reset form when shop data loads (handles race condition on first login)
   useEffect(() => {
@@ -49,6 +60,11 @@ export default function SettingsPage() {
       setValue('address', shop.address || '')
       setValue('tax_percent', shop.tax_percent)
       setValue('is_open', shop.is_open)
+      setValue('coupons_enabled', shop.coupons_enabled ?? true)
+      setValue('reviews_enabled', shop.reviews_enabled ?? true)
+      setValue('auto_schedule_enabled', shop.auto_schedule_enabled ?? false)
+      setValue('auto_open_time', shop.auto_open_time || '')
+      setValue('auto_close_time', shop.auto_close_time || '')
     }
   }, [shop, setValue])
 
@@ -75,18 +91,83 @@ export default function SettingsPage() {
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
         {/* Shop status */}
         <Card>
-          <CardContent className="p-5">
+          <CardContent className="p-5 space-y-4">
             <div className="flex items-center justify-between">
               <div>
                 <p className="font-semibold text-gray-900">Shop status</p>
                 <p className="text-sm text-gray-500 mt-0.5">
-                  {isOpen ? 'Customers can place orders' : 'Orders are paused'}
+                  {isOpen ? 'Full menu — customers can place kitchen orders' : 'Offline — only Grab & Go / instant items available'}
                 </p>
               </div>
               <Toggle
                 checked={isOpen}
                 onChange={(v) => setValue('is_open', v)}
-                label={isOpen ? 'Open' : 'Closed'}
+                label={isOpen ? 'Online' : 'Offline'}
+              />
+            </div>
+            {!isOpen && (
+              <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800">
+                <Zap size={13} className="flex-shrink-0 mt-0.5 text-amber-500" />
+                <span>When offline, customers can only order Grab &amp; Go (instant) items. Kitchen orders are disabled.</span>
+              </div>
+            )}
+
+            {/* Auto-schedule */}
+            <div className="border-t border-gray-100 pt-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium text-gray-800 text-sm flex items-center gap-1.5"><Clock size={14} /> Auto open/close schedule</p>
+                  <p className="text-xs text-gray-400 mt-0.5">Automatically go online and offline at set times</p>
+                </div>
+                <Toggle
+                  checked={watch('auto_schedule_enabled')}
+                  onChange={(v) => setValue('auto_schedule_enabled', v)}
+                  label=""
+                />
+              </div>
+              {autoSchedule && (
+                <div className="grid grid-cols-2 gap-3 pl-2 border-l-2 border-orange-200">
+                  <Input
+                    label="Open at"
+                    type="time"
+                    {...register('auto_open_time')}
+                  />
+                  <Input
+                    label="Close at"
+                    type="time"
+                    {...register('auto_close_time')}
+                  />
+                  <p className="col-span-2 text-xs text-gray-400">The shop will automatically go online/offline at these times each day.</p>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Feature flags */}
+        <Card>
+          <CardContent className="p-5 space-y-4">
+            <h3 className="font-semibold text-gray-900">Customer features</h3>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-800 flex items-center gap-1.5"><Tag size={14} /> Coupon codes</p>
+                <p className="text-xs text-gray-400 mt-0.5">Show coupon input field at checkout</p>
+              </div>
+              <Toggle
+                checked={watch('coupons_enabled')}
+                onChange={(v) => setValue('coupons_enabled', v)}
+                label=""
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-800 flex items-center gap-1.5"><Star size={14} /> Customer reviews</p>
+                <p className="text-xs text-gray-400 mt-0.5">Allow customers to leave a review after their order</p>
+              </div>
+              <Toggle
+                checked={watch('reviews_enabled')}
+                onChange={(v) => setValue('reviews_enabled', v)}
+                label=""
               />
             </div>
           </CardContent>

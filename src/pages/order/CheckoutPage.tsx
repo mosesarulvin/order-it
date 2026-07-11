@@ -1,27 +1,25 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { ArrowLeft, Minus, Plus, Trash2, User, Phone, Wallet, Banknote, ChevronRight, ShoppingBag, Clock } from 'lucide-react'
+import { ArrowLeft, Minus, Plus, Trash2, User, Phone, Wallet, Banknote, ChevronRight, ShoppingBag, Clock, EyeOff, Tag, X } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { formatCurrency, generateOrderNumber } from '@/lib/utils'
 import { useCartStore } from '@/store/cartStore'
 import { Button } from '@/components/ui/Button'
 import { Input, Textarea } from '@/components/ui/Input'
-import type { PaymentMethod } from '@/types'
+import type { Coupon, PaymentMethod } from '@/types'
 import toast from 'react-hot-toast'
 
-const schema = z.object({
+// Base schema — phone validation added dynamically based on anonymous toggle
+const baseSchema = z.object({
   customer_name: z.string().min(2, 'Enter your name'),
-  customer_phone: z.string()
-    .min(10, 'Enter a valid 10-digit phone number')
-    .max(10, 'Phone number must be 10 digits')
-    .regex(/^[6-9]\d{9}$/, 'Enter a valid Indian mobile number'),
+  customer_phone: z.string().optional(),
   notes: z.string().max(200, 'Notes must be 200 characters or less').optional(),
 })
 
-type FormData = z.infer<typeof schema>
+type FormData = z.infer<typeof baseSchema>
 
 export default function CheckoutPage() {
   const { slug } = useParams<{ slug: string }>()
@@ -30,55 +28,115 @@ export default function CheckoutPage() {
   const [loading, setLoading] = useState(false)
   const [shopId, setShopId] = useState<string | null>(null)
   const [taxPercent, setTaxPercent] = useState(0)
-  // null = loading, true/false = resolved
   const [shopOpen, setShopOpen] = useState<boolean | null>(null)
+  const [couponsEnabled, setCouponsEnabled] = useState(true)
+  const [isAnonymous, setIsAnonymous] = useState(false)
+  const [couponInput, setCouponInput] = useState('')
+  const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null)
+  const [couponLoading, setCouponLoading] = useState(false)
+  const orderPlacedRef = useRef(false)
   const { items, updateQuantity, removeItem, getTotalPrice, clearCart } = useCartStore()
 
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
-    resolver: zodResolver(schema),
+    resolver: zodResolver(baseSchema),
   })
 
   // Fetch shop tax upfront so the displayed total is accurate
   useEffect(() => {
     if (!slug) return
-    supabase.from('shops').select('id, tax_percent, is_open').eq('slug', slug).single()
+    supabase.from('shops').select('id, tax_percent, is_open, coupons_enabled').eq('slug', slug).single()
       .then(({ data }) => {
-        if (data) { setShopId(data.id); setTaxPercent(data.tax_percent); setShopOpen(data.is_open) }
+        if (data) { setShopId(data.id); setTaxPercent(data.tax_percent); setShopOpen(data.is_open); setCouponsEnabled(data.coupons_enabled ?? true) }
         else { setShopOpen(false) }
       })
   }, [slug])
 
-  // Redirect to menu if cart is empty (e.g. direct URL access or after clearing)
+  // Redirect to menu if cart is empty (e.g. direct URL access)
+  // Skip if an order was just placed — navigate() to success page will take over
   useEffect(() => {
-    if (items.length === 0 && slug) {
+    if (items.length === 0 && slug && !orderPlacedRef.current) {
       navigate(`/order/${slug}`, { replace: true })
     }
   }, [items.length, slug, navigate])
 
   const subtotal = getTotalPrice()
   const taxAmount = Math.round(subtotal * taxPercent) / 100
-  const total = subtotal + taxAmount
+  const discountAmount = appliedCoupon
+    ? appliedCoupon.type === 'percentage'
+      ? Math.round(subtotal * appliedCoupon.value) / 100
+      : Math.min(appliedCoupon.value, subtotal)
+    : 0
+  const total = Math.max(0, subtotal + taxAmount - discountAmount)
+
+  const applyCoupon = async () => {
+    const code = couponInput.trim().toUpperCase()
+    if (!code) return
+    if (!shopId) { toast.error('Shop not loaded yet'); return }
+    setCouponLoading(true)
+    const { data, error } = await supabase
+      .from('coupons')
+      .select('*')
+      .eq('shop_id', shopId)
+      .eq('code', code)
+      .eq('is_active', true)
+      .single()
+    setCouponLoading(false)
+    if (error || !data) { toast.error('Invalid or inactive coupon code'); return }
+    if (data.expires_at && new Date(data.expires_at) < new Date()) { toast.error('This coupon has expired'); return }
+    if (data.max_uses !== null && data.used_count >= data.max_uses) { toast.error('This coupon has reached its usage limit'); return }
+    if (subtotal < data.min_order_amount) {
+      toast.error(`Minimum order of ${formatCurrency(data.min_order_amount)} required for this coupon`)
+      return
+    }
+    setAppliedCoupon(data as Coupon)
+    toast.success(`Coupon applied! 🎉`)
+  }
+
+  const removeCoupon = () => { setAppliedCoupon(null); setCouponInput('') }
 
   const onSubmit = async (data: FormData) => {
     if (items.length === 0) { toast.error('Your cart is empty'); return }
     if (!shopId) { toast.error('Shop not found'); return }
+
+    // Phone validation when not anonymous
+    if (!isAnonymous) {
+      const phone = data.customer_phone || ''
+      if (!/^[6-9]\d{9}$/.test(phone)) {
+        toast.error('Enter a valid 10-digit Indian mobile number')
+        return
+      }
+    }
+
     setLoading(true)
 
     try {
-      // Re-validate all cart items are still available
+      // Re-validate availability
       const itemIds = items.map((ci) => ci.menu_item.id)
       const { data: menuItems, error: availErr } = await supabase
         .from('menu_items')
-        .select('id, is_available, name')
+        .select('id, is_available, name, is_instant, stock_quantity')
         .in('id', itemIds)
       if (availErr) throw new Error('Could not verify item availability')
       const unavailable = (menuItems ?? []).filter((m) => !m.is_available)
       if (unavailable.length > 0) {
-        const names = unavailable.map((m) => m.name).join(', ')
-        toast.error(`Some items are no longer available: ${names}. Please update your cart.`)
+        toast.error(`Some items are no longer available: ${unavailable.map((m) => m.name).join(', ')}`)
         setLoading(false)
         return
       }
+
+      // Check stock for tracked items
+      for (const ci of items) {
+        const m = (menuItems ?? []).find((m) => m.id === ci.menu_item.id)
+        if (m && m.stock_quantity !== null && ci.quantity > m.stock_quantity) {
+          toast.error(`Not enough stock for "${ci.menu_item.name}" (only ${m.stock_quantity} left)`)
+          setLoading(false)
+          return
+        }
+      }
+
+      // If every item is instant → order goes straight to 'ready'
+      const allInstant = (menuItems ?? []).every((m) => m.is_instant)
+      const orderStatus = allInstant ? 'ready' : 'pending'
 
       const orderNumber = generateOrderNumber()
 
@@ -88,11 +146,14 @@ export default function CheckoutPage() {
           shop_id: shopId,
           order_number: orderNumber,
           customer_name: data.customer_name,
-          customer_phone: data.customer_phone,
+          customer_phone: isAnonymous ? 'Anonymous' : (data.customer_phone || ''),
           notes: data.notes || null,
-          status: 'pending',
+          status: orderStatus,
           payment_method: paymentMethod,
           payment_status: 'pending',
+          is_anonymous: isAnonymous,
+          coupon_code: appliedCoupon?.code ?? null,
+          discount_amount: discountAmount,
           subtotal,
           tax_amount: taxAmount,
           total,
@@ -102,7 +163,7 @@ export default function CheckoutPage() {
 
       if (orderErr || !order) throw new Error(orderErr?.message || 'Failed to create order')
 
-      // Insert order items
+      // Insert order items with customizations
       const orderItems = items.map((ci) => ({
         order_id: order.id,
         menu_item_id: ci.menu_item.id,
@@ -110,11 +171,40 @@ export default function CheckoutPage() {
         price: ci.menu_item.price,
         quantity: ci.quantity,
         subtotal: ci.menu_item.price * ci.quantity,
+        customizations: ci.customizations ?? [],
       }))
 
       const { error: itemsErr } = await supabase.from('order_items').insert(orderItems)
       if (itemsErr) throw new Error(itemsErr.message)
 
+      // Deduct stock for tracked items
+      for (const ci of items) {
+        const m = (menuItems ?? []).find((m) => m.id === ci.menu_item.id)
+        if (m && m.stock_quantity !== null) {
+          await supabase
+            .from('menu_items')
+            .update({ stock_quantity: Math.max(0, m.stock_quantity - ci.quantity) })
+            .eq('id', ci.menu_item.id)
+          await supabase.from('stock_logs').insert({
+            shop_id: shopId,
+            menu_item_id: ci.menu_item.id,
+            item_name: ci.menu_item.name,
+            delta: -ci.quantity,
+            reason: 'order',
+            note: orderNumber,
+          })
+        }
+      }
+
+      // Increment coupon usage
+      if (appliedCoupon) {
+        await supabase
+          .from('coupons')
+          .update({ used_count: appliedCoupon.used_count + 1 })
+          .eq('id', appliedCoupon.id)
+      }
+
+      orderPlacedRef.current = true
       clearCart()
       navigate(`/order/${slug}/success/${order.id}`)
     } catch (err) {
@@ -190,8 +280,8 @@ export default function CheckoutPage() {
             <h2 className="font-semibold text-gray-900 text-sm">Your order</h2>
           </div>
           <div className="divide-y divide-gray-50">
-            {items.map((ci) => (
-              <div key={ci.menu_item.id} className="px-4 py-3 flex items-center gap-3">
+            {items.map((ci, idx) => (
+              <div key={`${ci.menu_item.id}-${idx}`} className="px-4 py-3 flex items-center gap-3">
                 {ci.menu_item.image_url ? (
                   <img src={ci.menu_item.image_url} alt={ci.menu_item.name} className="w-12 h-12 rounded-xl object-cover flex-shrink-0" />
                 ) : (
@@ -199,7 +289,14 @@ export default function CheckoutPage() {
                 )}
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-900 truncate">{ci.menu_item.name}</p>
-                  <p className="text-sm font-semibold text-orange-600">{formatCurrency(ci.menu_item.price)}</p>
+                  {ci.customizations.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {ci.customizations.map((c, i) => (
+                        <span key={i} className="text-xs bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded-full">{c.choice}</span>
+                      ))}
+                    </div>
+                  )}
+                  <p className="text-sm font-semibold text-orange-600 mt-0.5">{formatCurrency(ci.menu_item.price)}</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="flex items-center gap-1.5 bg-gray-50 rounded-xl p-1">
@@ -233,13 +330,52 @@ export default function CheckoutPage() {
                 <span>Tax ({taxPercent}%)</span><span>{formatCurrency(taxAmount)}</span>
               </div>
             )}
+            {discountAmount > 0 && (
+              <div className="flex justify-between text-sm text-green-600 font-medium">
+                <span className="flex items-center gap-1"><Tag size={12} /> {appliedCoupon?.code}</span>
+                <span>−{formatCurrency(discountAmount)}</span>
+              </div>
+            )}
             <div className="flex justify-between font-bold text-gray-900 pt-1 border-t border-gray-200">
               <span>Total</span><span className="text-orange-600">{formatCurrency(total)}</span>
             </div>
           </div>
-        </div>
 
-        {/* Customer details */}
+          {/* Coupon input — only shown when coupons are enabled for this shop */}
+          {couponsEnabled && (
+          <div className="px-4 py-3 border-t border-gray-100">
+            {appliedCoupon ? (
+              <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-xl px-3 py-2">
+                <div className="flex items-center gap-2 text-green-700 text-sm font-medium">
+                  <Tag size={14} />
+                  <span>{appliedCoupon.code} · saving {formatCurrency(discountAmount)}</span>
+                </div>
+                <button onClick={removeCoupon} className="text-green-600 hover:text-red-500 transition-colors">
+                  <X size={16} />
+                </button>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Coupon code"
+                  value={couponInput}
+                  onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
+                  onKeyDown={(e) => e.key === 'Enter' && applyCoupon()}
+                  className="flex-1 h-9 px-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-orange-400 transition-colors uppercase placeholder:normal-case"
+                />
+                <button
+                  onClick={applyCoupon}
+                  disabled={couponLoading || !couponInput.trim()}
+                  className="px-4 h-9 rounded-xl bg-orange-50 text-orange-600 text-sm font-semibold hover:bg-orange-100 disabled:opacity-40 transition-colors"
+                >
+                  {couponLoading ? '...' : 'Apply'}
+                </button>
+              </div>
+            )}
+          </div>
+          )}
+        </div>
         <div className="bg-white rounded-2xl border border-gray-100 p-4 space-y-4">
           <h2 className="font-semibold text-gray-900 text-sm">Your details</h2>
           <Input
@@ -249,14 +385,39 @@ export default function CheckoutPage() {
             error={errors.customer_name?.message}
             {...register('customer_name')}
           />
-          <Input
-            label="Phone number"
-            type="tel"
-            placeholder="98765 43210"
-            icon={<Phone size={16} />}
-            error={errors.customer_phone?.message}
-            {...register('customer_phone')}
-          />
+          {!isAnonymous && (
+            <Input
+              label="Phone number"
+              type="tel"
+              placeholder="98765 43210"
+              icon={<Phone size={16} />}
+              error={errors.customer_phone?.message}
+              {...register('customer_phone')}
+            />
+          )}
+          {/* Anonymous toggle */}
+          <button
+            type="button"
+            onClick={() => setIsAnonymous((v) => !v)}
+            className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl border transition-all ${
+              isAnonymous ? 'border-blue-200 bg-blue-50' : 'border-gray-200 bg-gray-50 hover:bg-gray-100'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <EyeOff size={15} className={isAnonymous ? 'text-blue-600' : 'text-gray-400'} />
+              <span className={`text-sm font-medium ${isAnonymous ? 'text-blue-700' : 'text-gray-600'}`}>
+                Prefer not to share phone number
+              </span>
+            </div>
+            <div className={`w-9 h-5 rounded-full transition-colors relative ${isAnonymous ? 'bg-blue-500' : 'bg-gray-300'}`}>
+              <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${isAnonymous ? 'translate-x-4' : 'translate-x-0.5'}`} />
+            </div>
+          </button>
+          {isAnonymous && (
+            <p className="text-xs text-blue-600 bg-blue-50 rounded-xl px-3 py-2">
+              🔒 Your phone number won't be shared with the shop.
+            </p>
+          )}
           <Textarea
             label="Special instructions (optional)"
             placeholder="e.g. Less sugar, extra shot..."

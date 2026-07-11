@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard,
@@ -11,9 +11,14 @@ import {
   X,
   ChefHat,
   Bell,
+  Package,
+  Tag,
+  Star,
+  UserPlus,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/contexts/AuthContext'
+import { supabase } from '@/lib/supabase'
 import { getInitials } from '@/lib/utils'
 import toast from 'react-hot-toast'
 
@@ -22,15 +27,41 @@ const navItems = [
   { icon: UtensilsCrossed, label: 'Menu', to: '/dashboard/menu' },
   { icon: ClipboardList, label: 'Orders', to: '/dashboard/orders' },
   { icon: ChefHat, label: 'Kitchen', to: '/dashboard/kitchen' },
+  { icon: UserPlus, label: 'Walk-in', to: '/dashboard/walkin' },
+  { icon: Package, label: 'Stock', to: '/dashboard/stock' },
+  { icon: Tag, label: 'Coupons', to: '/dashboard/coupons' },
+  { icon: Star, label: 'Reviews', to: '/dashboard/reviews' },
   { icon: QrCode, label: 'QR Code', to: '/dashboard/qr' },
   { icon: Settings, label: 'Settings', to: '/dashboard/settings' },
 ]
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const { shop, user, signOut } = useAuth()
+  const { shop, user, signOut, refreshShop } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
   const [mobileOpen, setMobileOpen] = useState(false)
+  const scheduleRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  // Auto-schedule: check open/close times and update is_open in DB every minute
+  useEffect(() => {
+    if (!shop?.auto_schedule_enabled || !shop.auto_open_time || !shop.auto_close_time) return
+
+    const checkSchedule = async () => {
+      const now = new Date()
+      const hhmm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+      const shouldBeOpen = hhmm >= shop.auto_open_time! && hhmm < shop.auto_close_time!
+      if (shop.is_open !== shouldBeOpen) {
+        await supabase.from('shops').update({ is_open: shouldBeOpen }).eq('id', shop.id)
+        await refreshShop()
+      }
+    }
+
+    checkSchedule()
+    const interval = setInterval(checkSchedule, 60_000)
+    scheduleRef.current = interval
+    return () => clearInterval(interval)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shop?.id, shop?.auto_schedule_enabled, shop?.auto_open_time, shop?.auto_close_time])
 
   const handleSignOut = async () => {
     await signOut()

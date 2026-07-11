@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Plus, Pencil, Trash2, GripVertical, ImagePlus, Tag, ChevronDown, ChevronUp } from 'lucide-react'
+import { Plus, Pencil, Trash2, GripVertical, ImagePlus, Tag, ChevronDown, ChevronUp, Zap, Package, X as XIcon, Settings2 } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -13,7 +13,7 @@ import { Modal } from '@/components/ui/Modal'
 import { Toggle } from '@/components/ui/Toggle'
 import { Badge } from '@/components/ui/Badge'
 import { Skeleton } from '@/components/ui/Skeleton'
-import type { MenuCategory, MenuItem } from '@/types'
+import type { CustomizationGroup, MenuCategory, MenuItem } from '@/types'
 import toast from 'react-hot-toast'
 
 const categorySchema = z.object({
@@ -26,6 +26,10 @@ const itemSchema = z.object({
   description: z.string().optional(),
   price: z.number().min(0, 'Price must be positive'),
   is_popular: z.boolean().optional(),
+  is_instant: z.boolean().optional(),
+  track_stock: z.boolean().optional(),
+  stock_quantity: z.number().int().min(0).optional(),
+  low_stock_threshold: z.number().int().min(0).optional(),
 })
 
 type CategoryForm = z.infer<typeof categorySchema>
@@ -43,6 +47,8 @@ export default function MenuPage() {
   const [itemModal, setItemModal] = useState<{ open: boolean; editing?: MenuItem; categoryId?: string }>({ open: false })
   const [uploadingImage, setUploadingImage] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+  // customization groups state (managed separately from react-hook-form)
+  const [customGroups, setCustomGroups] = useState<CustomizationGroup[]>([])
 
   const catForm = useForm<CategoryForm>({ resolver: zodResolver(categorySchema) })
   const itemForm = useForm<ItemForm>({ resolver: zodResolver(itemSchema) })
@@ -102,12 +108,23 @@ export default function MenuPage() {
 
   // ── ITEM ACTIONS ─────────────────────────────────────────────────────────────
   const openAddItem = (categoryId: string) => {
-    itemForm.reset({ name: '', description: '', price: 0, is_popular: false })
+    itemForm.reset({ name: '', description: '', price: 0, is_popular: false, is_instant: false, track_stock: false, stock_quantity: 0, low_stock_threshold: 5 })
+    setCustomGroups([])
     setItemModal({ open: true, categoryId })
   }
 
   const openEditItem = (item: MenuItem) => {
-    itemForm.reset({ name: item.name, description: item.description || '', price: item.price, is_popular: item.is_popular })
+    itemForm.reset({
+      name: item.name,
+      description: item.description || '',
+      price: item.price,
+      is_popular: item.is_popular,
+      is_instant: item.is_instant,
+      track_stock: item.stock_quantity !== null,
+      stock_quantity: item.stock_quantity ?? 0,
+      low_stock_threshold: item.low_stock_threshold ?? 5,
+    })
+    setCustomGroups(item.customization_groups ?? [])
     setItemModal({ open: true, editing: item, categoryId: item.category_id })
   }
 
@@ -159,6 +176,10 @@ export default function MenuPage() {
       description: data.description || null,
       price: data.price,
       is_popular: data.is_popular || false,
+      is_instant: data.is_instant || false,
+      stock_quantity: data.track_stock ? (data.stock_quantity ?? 0) : null,
+      low_stock_threshold: data.low_stock_threshold ?? 5,
+      customization_groups: customGroups,
       is_available: true,
       sort_order: items.filter((i) => i.category_id === itemModal.categoryId).length,
       image_url: imageUrl,
@@ -177,6 +198,7 @@ export default function MenuPage() {
     setItemModal({ open: false })
     setPendingImageFile(null)
     setImagePreview(null)
+    setCustomGroups([])
     fetchMenu()
   }
 
@@ -284,9 +306,16 @@ export default function MenuPage() {
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 flex-wrap">
                                   <span className="font-medium text-gray-900 text-sm">{item.name}</span>
-                                  {item.is_popular && <Badge variant="orange">Popular</Badge>}
-                                  {!item.is_available && <Badge variant="default">Unavailable</Badge>}
-                                </div>
+                                {item.is_instant && <Badge variant="orange"><Zap size={10} className="mr-0.5" />Instant</Badge>}
+                                {item.is_popular && <Badge variant="orange">Popular</Badge>}
+                                {!item.is_available && <Badge variant="default">Unavailable</Badge>}
+                                {item.customization_groups?.length > 0 && <Badge variant="default"><Settings2 size={10} className="mr-0.5" />{item.customization_groups.length} options</Badge>}
+                                {item.stock_quantity !== null && (
+                                  <Badge variant={item.stock_quantity === 0 ? 'default' : item.stock_quantity <= item.low_stock_threshold ? 'orange' : 'default'}>
+                                    <Package size={10} className="mr-0.5" />
+                                    {item.stock_quantity === 0 ? 'Out of stock' : `Stock: ${item.stock_quantity}`}
+                                  </Badge>
+                                )}\n                              </div>
                                 {item.description && <p className="text-xs text-gray-400 mt-0.5 truncate max-w-xs">{item.description}</p>}
                                 <p className="text-sm font-semibold text-orange-600 mt-1">{formatCurrency(item.price)}</p>
                               </div>
@@ -346,7 +375,7 @@ export default function MenuPage() {
       {/* Item Modal */}
       <Modal
         open={itemModal.open}
-        onClose={() => { setItemModal({ open: false }); setPendingImageFile(null); setImagePreview(null) }}
+        onClose={() => { setItemModal({ open: false }); setPendingImageFile(null); setImagePreview(null); setCustomGroups([]) }}
         title={itemModal.editing ? 'Edit Item' : 'New Menu Item'}
         size="md"
       >
@@ -398,9 +427,102 @@ export default function MenuPage() {
             onChange={(v) => itemForm.setValue('is_popular', v)}
             label="Mark as popular"
           />
+          <Toggle
+            checked={itemForm.watch('is_instant') || false}
+            onChange={(v) => itemForm.setValue('is_instant', v)}
+            label="⚡ Instant / Ready-made (no prep time)"
+          />
+          <Toggle
+            checked={itemForm.watch('track_stock') || false}
+            onChange={(v) => itemForm.setValue('track_stock', v)}
+            label="Track stock quantity"
+          />
+          {itemForm.watch('track_stock') && (
+            <div className="grid grid-cols-2 gap-3 pl-2 border-l-2 border-orange-200">
+              <Input
+                label="Current stock"
+                type="number"
+                placeholder="0"
+                {...itemForm.register('stock_quantity', { valueAsNumber: true })}
+              />
+              <Input
+                label="Alert below"
+                type="number"
+                placeholder="5"
+                {...itemForm.register('low_stock_threshold', { valueAsNumber: true })}
+              />
+            </div>
+          )}
+
+          {/* Customization Groups */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-gray-700">Customization Options</span>
+              <button
+                type="button"
+                onClick={() => setCustomGroups((g) => [...g, { name: '', type: 'single', required: false, choices: [''] }])}
+                className="flex items-center gap-1 text-xs text-orange-600 hover:text-orange-700 font-medium"
+              >
+                <Plus size={13} /> Add Option Group
+              </button>
+            </div>
+            {customGroups.map((group, gi) => (
+              <div key={gi} className="border border-gray-200 rounded-xl p-3 space-y-2.5 bg-gray-50">
+                <div className="flex items-center gap-2">
+                  <input
+                    value={group.name}
+                    onChange={(e) => setCustomGroups((g) => g.map((x, i) => i === gi ? { ...x, name: e.target.value } : x))}
+                    placeholder="Group name (e.g. Spice Level)"
+                    className="flex-1 h-8 px-2 rounded-lg border border-gray-200 text-sm outline-none focus:border-orange-400"
+                  />
+                  <button type="button" onClick={() => setCustomGroups((g) => g.filter((_, i) => i !== gi))} className="text-gray-400 hover:text-red-500">
+                    <XIcon size={15} />
+                  </button>
+                </div>
+                <div className="flex items-center gap-3 text-xs text-gray-600">
+                  <label className="flex items-center gap-1 cursor-pointer">
+                    <input type="radio" checked={group.type === 'single'} onChange={() => setCustomGroups((g) => g.map((x, i) => i === gi ? { ...x, type: 'single' } : x))} />
+                    Single choice
+                  </label>
+                  <label className="flex items-center gap-1 cursor-pointer">
+                    <input type="radio" checked={group.type === 'multi'} onChange={() => setCustomGroups((g) => g.map((x, i) => i === gi ? { ...x, type: 'multi' } : x))} />
+                    Multi choice
+                  </label>
+                  <label className="flex items-center gap-1 cursor-pointer ml-auto">
+                    <input type="checkbox" checked={group.required} onChange={(e) => setCustomGroups((g) => g.map((x, i) => i === gi ? { ...x, required: e.target.checked } : x))} />
+                    Required
+                  </label>
+                </div>
+                <div className="space-y-1.5">
+                  {group.choices.map((choice, ci) => (
+                    <div key={ci} className="flex items-center gap-1.5">
+                      <input
+                        value={choice}
+                        onChange={(e) => setCustomGroups((g) => g.map((x, i) => i === gi ? { ...x, choices: x.choices.map((c, j) => j === ci ? e.target.value : c) } : x))}
+                        placeholder={`Choice ${ci + 1} (e.g. Mild)`}
+                        className="flex-1 h-7 px-2 rounded-lg border border-gray-200 text-xs outline-none focus:border-orange-400 bg-white"
+                      />
+                      {group.choices.length > 1 && (
+                        <button type="button" onClick={() => setCustomGroups((g) => g.map((x, i) => i === gi ? { ...x, choices: x.choices.filter((_, j) => j !== ci) } : x))} className="text-gray-300 hover:text-red-400">
+                          <XIcon size={12} />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setCustomGroups((g) => g.map((x, i) => i === gi ? { ...x, choices: [...x.choices, ''] } : x))}
+                    className="text-xs text-orange-500 hover:text-orange-600 font-medium"
+                  >
+                    + Add choice
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
 
           <div className="flex gap-3 pt-2">
-            <Button type="button" variant="outline" className="flex-1" onClick={() => { setItemModal({ open: false }); setPendingImageFile(null); setImagePreview(null) }}>
+            <Button type="button" variant="outline" className="flex-1" onClick={() => { setItemModal({ open: false }); setPendingImageFile(null); setImagePreview(null); setCustomGroups([]) }}>
               Cancel
             </Button>
             <Button type="submit" className="flex-1" loading={itemForm.formState.isSubmitting || uploadingImage}>

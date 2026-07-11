@@ -7,6 +7,7 @@ import { Card, CardContent } from '@/components/ui/Card'
 import { Input } from '@/components/ui/Input'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { Modal } from '@/components/ui/Modal'
+import { CancelOrderModal } from '@/components/CancelOrderModal'
 import type { Order, OrderStatus } from '@/types'
 import toast from 'react-hot-toast'
 import type { RealtimeChannel } from '@supabase/supabase-js'
@@ -28,6 +29,7 @@ export default function OrdersPage() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<OrderStatus | 'all'>('all')
   const [selected, setSelected] = useState<Order | null>(null)
+  const [cancelTarget, setCancelTarget] = useState<Order | null>(null)
   const channelRef = useRef<RealtimeChannel | null>(null)
 
   useEffect(() => {
@@ -62,11 +64,24 @@ export default function OrdersPage() {
   }
 
   const updateStatus = async (orderId: string, status: OrderStatus) => {
+    if (status === 'cancelled') {
+      const order = orders.find((o) => o.id === orderId)
+      if (order) { setCancelTarget(order); return }
+    }
     const { error } = await supabase.from('orders').update({ status }).eq('id', orderId)
     if (error) { toast.error(error.message); return }
     toast.success(`Order marked as ${status}`)
     setOrders((prev) => prev.map((o) => o.id === orderId ? { ...o, status } : o))
     if (selected?.id === orderId) setSelected((prev) => prev ? { ...prev, status } : prev)
+  }
+
+  const cancelOrder = async (orderId: string, reason: string) => {
+    const { error } = await supabase.from('orders').update({ status: 'cancelled', cancellation_reason: reason }).eq('id', orderId)
+    if (error) { toast.error(error.message); return }
+    toast.success('Order cancelled')
+    const updated = { status: 'cancelled' as OrderStatus, cancellation_reason: reason }
+    setOrders((prev) => prev.map((o) => o.id === orderId ? { ...o, ...updated } : o))
+    if (selected?.id === orderId) setSelected((prev) => prev ? { ...prev, ...updated } : prev)
   }
 
   const markAsPaid = async (orderId: string) => {
@@ -184,7 +199,10 @@ export default function OrdersPage() {
             <div className="bg-gray-50 rounded-xl p-4 space-y-2">
               <p className="text-sm font-medium text-gray-700">Customer</p>
               <p className="font-semibold text-gray-900">{selected.customer_name}</p>
-              <p className="text-sm text-gray-500">{selected.customer_phone}</p>
+              {selected.is_anonymous
+                ? <p className="text-sm text-blue-500">🔒 Anonymous</p>
+                : <p className="text-sm text-gray-500">{selected.customer_phone}</p>
+              }
               <p className="text-xs text-gray-400">{formatDate(selected.created_at)}</p>
             </div>
 
@@ -193,9 +211,18 @@ export default function OrdersPage() {
               <p className="text-sm font-medium text-gray-700 mb-3">Items ordered</p>
               <div className="space-y-2">
                 {selected.items?.map((item) => (
-                  <div key={item.id} className="flex justify-between items-center text-sm">
-                    <span className="text-gray-700">{item.name} <span className="text-gray-400">× {item.quantity}</span></span>
-                    <span className="font-medium text-gray-900">{formatCurrency(item.subtotal)}</span>
+                  <div key={item.id} className="text-sm">
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-700">{item.name} <span className="text-gray-400">× {item.quantity}</span></span>
+                      <span className="font-medium text-gray-900">{formatCurrency(item.subtotal)}</span>
+                    </div>
+                    {item.customizations && item.customizations.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-0.5">
+                        {item.customizations.map((c, ci) => (
+                          <span key={ci} className="text-xs bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded-full">{c.choice}</span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -206,6 +233,12 @@ export default function OrdersPage() {
                 {selected.tax_amount > 0 && (
                   <div className="flex justify-between text-sm text-gray-500">
                     <span>Tax</span><span>{formatCurrency(selected.tax_amount)}</span>
+                  </div>
+                )}
+                {selected.discount_amount > 0 && (
+                  <div className="flex justify-between text-sm text-green-600">
+                    <span>Discount{selected.coupon_code ? ` (${selected.coupon_code})` : ''}</span>
+                    <span>-{formatCurrency(selected.discount_amount)}</span>
                   </div>
                 )}
                 <div className="flex justify-between font-bold text-gray-900">
@@ -258,6 +291,13 @@ export default function OrdersPage() {
           </div>
         )}
       </Modal>
+
+      <CancelOrderModal
+        open={!!cancelTarget}
+        orderNumber={cancelTarget?.order_number ?? ''}
+        onClose={() => setCancelTarget(null)}
+        onConfirm={(reason) => cancelOrder(cancelTarget!.id, reason)}
+      />
     </div>
   )
 }

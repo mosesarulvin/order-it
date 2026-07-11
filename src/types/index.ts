@@ -10,6 +10,11 @@ export interface Shop {
   currency: string
   is_open: boolean
   tax_percent: number
+  coupons_enabled: boolean
+  reviews_enabled: boolean
+  auto_schedule_enabled: boolean
+  auto_open_time: string | null
+  auto_close_time: string | null
   created_at: string
   updated_at: string
 }
@@ -24,6 +29,13 @@ export interface MenuCategory {
   created_at: string
 }
 
+export interface CustomizationGroup {
+  name: string
+  type: 'single' | 'multi'
+  required: boolean
+  choices: string[]
+}
+
 export interface MenuItem {
   id: string
   shop_id: string
@@ -34,6 +46,10 @@ export interface MenuItem {
   image_url: string | null
   is_available: boolean
   is_popular: boolean
+  is_instant: boolean
+  stock_quantity: number | null
+  low_stock_threshold: number
+  customization_groups: CustomizationGroup[]
   sort_order: number
   created_at: string
   updated_at: string
@@ -55,8 +71,13 @@ export interface Order {
   payment_status: PaymentStatus
   subtotal: number
   tax_amount: number
+  discount_amount: number
   total: number
   notes: string | null
+  cancellation_reason: string | null
+  is_anonymous: boolean
+  coupon_code: string | null
+  order_source: 'qr' | 'walkin'
   created_at: string
   updated_at: string
   items?: OrderItem[]
@@ -71,6 +92,7 @@ export interface OrderItem {
   price: number
   quantity: number
   subtotal: number
+  customizations: { group: string; choice: string }[]
   created_at: string
   menu_item?: MenuItem
 }
@@ -78,6 +100,7 @@ export interface OrderItem {
 export interface CartItem {
   menu_item: MenuItem
   quantity: number
+  customizations: { group: string; choice: string }[]
 }
 
 export interface DashboardStats {
@@ -85,4 +108,40 @@ export interface DashboardStats {
   pending_orders: number
   today_revenue: number
   total_revenue: number
+}
+
+export interface StockLog {
+  id: string
+  shop_id: string
+  menu_item_id: string | null
+  item_name: string
+  delta: number
+  reason: 'order' | 'restock' | 'adjustment'
+  note: string | null
+  created_at: string
+}
+
+export interface Coupon {
+  id: string
+  shop_id: string
+  code: string
+  type: 'percentage' | 'amount'
+  value: number
+  min_order_amount: number
+  max_uses: number | null
+  used_count: number
+  expires_at: string | null
+  is_active: boolean
+  created_at: string
+}
+
+export interface Review {
+  id: string
+  shop_id: string
+  order_id: string | null
+  order_number: string | null
+  customer_name: string
+  rating: number
+  comment: string | null
+  created_at: string
 }
