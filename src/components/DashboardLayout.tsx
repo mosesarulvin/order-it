@@ -16,32 +16,49 @@ import {
   Star,
   UserPlus,
   Users,
+  Shield,
+  ChevronDown
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/contexts/AuthContext'
+import { ThemeToggle } from '@/components/ThemeToggle'
 import { supabase } from '@/lib/supabase'
 import { getInitials } from '@/lib/utils'
 import toast from 'react-hot-toast'
 
-const navItems = [
-  { icon: LayoutDashboard, label: 'Dashboard', to: '/dashboard' },
-  { icon: UtensilsCrossed, label: 'Menu', to: '/dashboard/menu' },
-  { icon: ClipboardList, label: 'Orders', to: '/dashboard/orders' },
-  { icon: ChefHat, label: 'Kitchen', to: '/dashboard/kitchen' },
-  { icon: UserPlus, label: 'Walk-in', to: '/dashboard/walkin' },
-  { icon: Package, label: 'Stock', to: '/dashboard/stock' },
-  { icon: Tag, label: 'Coupons', to: '/dashboard/coupons' },
-  { icon: Users, label: 'Customers', to: '/dashboard/customers' },
-  { icon: Star, label: 'Reviews', to: '/dashboard/reviews' },
-  { icon: QrCode, label: 'QR Code', to: '/dashboard/qr' },
-  { icon: Settings, label: 'Settings', to: '/dashboard/settings' },
-]
+const getNavItems = (role: string | null, isSuperAdmin: boolean) => {
+  const allItems = [
+    { icon: LayoutDashboard, label: 'Dashboard', to: '/dashboard', roles: ['owner', 'manager'] },
+    { icon: UtensilsCrossed, label: 'Menu', to: '/dashboard/menu', roles: ['owner', 'manager'] },
+    { icon: ClipboardList, label: 'Orders', to: '/dashboard/orders', roles: ['owner', 'manager', 'staff'] },
+    { icon: ChefHat, label: 'Kitchen', to: '/dashboard/kitchen', roles: ['owner', 'manager', 'staff'] },
+    { icon: UserPlus, label: 'Walk-in', to: '/dashboard/walkin', roles: ['owner', 'manager', 'staff'] },
+    { icon: Package, label: 'Stock', to: '/dashboard/stock', roles: ['owner', 'manager'] },
+    { icon: Tag, label: 'Coupons', to: '/dashboard/coupons', roles: ['owner', 'manager'] },
+    { icon: Users, label: 'Customers', to: '/dashboard/customers', roles: ['owner', 'manager'] },
+    { icon: Star, label: 'Reviews', to: '/dashboard/reviews', roles: ['owner', 'manager'] },
+    { icon: QrCode, label: 'QR Code', to: '/dashboard/qr', roles: ['owner', 'manager'] },
+    { icon: Users, label: 'Staff', to: '/dashboard/staff', roles: ['owner'] },
+    { icon: Settings, label: 'Settings', to: '/dashboard/settings', roles: ['owner'] },
+  ]
+  
+  if (isSuperAdmin) {
+    return [
+      ...allItems,
+      { icon: Shield, label: 'Super Admin', to: '/admin', roles: [] }
+    ]
+  }
+  
+  if (!role) return []
+  return allItems.filter(i => i.roles.includes(role))
+}
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const { shop, user, signOut, refreshShop } = useAuth()
+  const { shop, user, userRole, isSuperAdmin, signOut, refreshShop } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
   const [mobileOpen, setMobileOpen] = useState(false)
+  const navItems = getNavItems(userRole, isSuperAdmin)
 
   // Auto-schedule: check open/close times and update is_open in DB every minute
   useEffect(() => {
@@ -71,7 +88,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const Sidebar = ({ mobile = false }: { mobile?: boolean }) => (
     <aside
       className={cn(
-        'flex flex-col bg-white border-r border-gray-100 h-full',
+        'flex flex-col bg-white dark:bg-slate-900 border-r border-gray-100 dark:border-slate-800 h-full',
         mobile ? 'w-72 p-6' : 'w-64 p-5'
       )}
     >
@@ -98,11 +115,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               className={cn(
                 'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150',
                 active
-                  ? 'bg-orange-50 text-orange-600'
-                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                  ? 'bg-orange-50 dark:bg-orange-950/30 text-orange-600 dark:text-orange-400'
+                  : 'text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-slate-800 hover:text-gray-900 dark:hover:text-white'
               )}
             >
-              <Icon size={18} className={active ? 'text-orange-500' : 'text-gray-400'} />
+              <Icon size={18} className={active ? 'text-orange-500 dark:text-orange-400' : 'text-gray-400 dark:text-gray-500'} />
               {label}
             </Link>
           )
@@ -110,26 +127,26 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </nav>
 
       {/* Shop open status */}
-      <div className="border-t border-gray-100 pt-4 mt-4 space-y-3">
-        <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-xl">
+      <div className="border-t border-gray-100 dark:border-slate-800 pt-4 mt-4 space-y-3">
+        <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-slate-800 rounded-xl">
           <div className={cn('w-2 h-2 rounded-full', shop?.is_open ? 'bg-green-500' : 'bg-gray-400')} />
-          <span className="text-xs font-medium text-gray-600">
+          <span className="text-xs font-medium text-gray-600 dark:text-gray-300">
             {shop?.is_open ? 'Shop is open' : 'Shop is closed'}
           </span>
         </div>
 
         {/* User */}
         <div className="flex items-center gap-3 px-3">
-          <div className="w-8 h-8 rounded-full bg-orange-100 text-orange-700 flex items-center justify-center text-xs font-bold flex-shrink-0">
+          <div className="w-8 h-8 rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 flex items-center justify-center text-xs font-bold flex-shrink-0">
             {getInitials(shop?.name || user?.email || 'U')}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-gray-900 truncate">{shop?.name || 'Your Shop'}</p>
-            <p className="text-xs text-gray-400 truncate">{user?.email}</p>
+            <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{shop?.name || 'Your Shop'}</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{user?.email}</p>
           </div>
           <button
             onClick={handleSignOut}
-            className="text-gray-400 hover:text-red-500 transition-colors p-1 rounded-lg hover:bg-red-50"
+            className="text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 transition-colors p-1 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30"
             title="Sign out"
           >
             <LogOut size={16} />
@@ -140,7 +157,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   )
 
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden">
+    <div className="flex h-screen bg-gray-50 dark:bg-slate-950 overflow-hidden">
       {/* Desktop sidebar */}
       <div className="hidden lg:flex h-full">
         <Sidebar />
@@ -165,23 +182,25 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Top bar */}
-        <header className="bg-white border-b border-gray-100 px-4 lg:px-6 h-16 flex items-center justify-between flex-shrink-0">
+        <header className="bg-white dark:bg-slate-900 border-b border-gray-100 dark:border-slate-800 px-4 lg:px-6 h-16 flex items-center justify-between flex-shrink-0">
           <button
-            className="lg:hidden p-2 rounded-xl text-gray-500 hover:bg-gray-100 transition-colors"
+            className="lg:hidden p-2 rounded-xl text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors"
             onClick={() => setMobileOpen(true)}
           >
             <Menu size={20} />
           </button>
           <div className="hidden lg:block">
-            <h1 className="text-sm font-semibold text-gray-900">
+            <h1 className="text-sm font-semibold text-gray-900 dark:text-white">
               {navItems.find((n) => n.to === location.pathname)?.label || 'Dashboard'}
             </h1>
           </div>
           <div className="flex items-center gap-2 ml-auto">
-            <button className="p-2 rounded-xl text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors">
+            <ThemeToggle />
+          
+            <button className="p-2 rounded-xl text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-800 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
               <Bell size={18} />
             </button>
-            <div className="w-8 h-8 rounded-full bg-orange-100 text-orange-700 flex items-center justify-center text-xs font-bold">
+            <div className="w-8 h-8 rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 flex items-center justify-center text-xs font-bold">
               {getInitials(shop?.name || user?.email || 'U')}
             </div>
           </div>

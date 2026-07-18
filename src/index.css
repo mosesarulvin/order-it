@@ -1,5 +1,33 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * Brand theming system
+ * --------------------
+ * These CSS custom properties are the single source-of-truth for customer-facing
+ * brand colors. They default to the orange palette and can be overridden at
+ * runtime via JavaScript (document.documentElement.style.setProperty) when a
+ * shop owner selects custom colors in their Settings page.
+ *
+ *   --brand-primary   → Buttons, header, cart bar, active pills
+ *   --brand-secondary → Header gradient end, hover states, shadows
+ *   --brand-accent    → Price text, badges, highlights
+ */
+:root {
+  --brand-primary: #f97316;   /* orange-500 */
+  --brand-secondary: #f59e0b; /* amber-500  */
+  --brand-accent: #ea580c;    /* orange-600 */
+
+  /* Derived shades — computed from the primary for common UI patterns */
+  --brand-primary-light: color-mix(in srgb, var(--brand-primary) 15%, white);
+  --brand-primary-lighter: color-mix(in srgb, var(--brand-primary) 8%, white);
+  --brand-primary-dark: color-mix(in srgb, var(--brand-primary) 85%, black);
+  --brand-primary-shadow: color-mix(in srgb, var(--brand-primary) 30%, transparent);
+  --brand-accent-light: color-mix(in srgb, var(--brand-accent) 15%, white);
+  --brand-accent-lighter: color-mix(in srgb, var(--brand-accent) 8%, white);
+}
+
 @theme {
   --color-brand-50: #fff7ed;
   --color-brand-100: #ffedd5;
@@ -34,9 +62,33 @@
     background-color: #f9fafb;
     color: #111827;
   }
+  
+  .dark body {
+    background-color: #020617; /* slate-950 */
+    color: #f8fafc; /* slate-50 */
+  }
 
   #root {
     min-height: 100vh;
+  }
+
+  /* Fix Chrome autofill background colors overriding Tailwind */
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover, 
+  input:-webkit-autofill:focus, 
+  input:-webkit-autofill:active{
+    -webkit-box-shadow: 0 0 0 30px white inset !important;
+    -webkit-text-fill-color: #111827 !important; /* text-gray-900 */
+    caret-color: #111827 !important;
+  }
+
+  .dark input:-webkit-autofill,
+  .dark input:-webkit-autofill:hover, 
+  .dark input:-webkit-autofill:focus, 
+  .dark input:-webkit-autofill:active{
+    -webkit-box-shadow: 0 0 0 30px #020617 inset !important; /* slate-950 */
+    -webkit-text-fill-color: white !important;
+    caret-color: white !important;
   }
 
   ::-webkit-scrollbar {
@@ -77,3 +129,54 @@
   0% { transform: scale(0.8); opacity: 1; }
   100% { transform: scale(2); opacity: 0; }
 }
+
+@keyframes splashFadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+/*
+ * Brand utility classes — used in customer-facing pages.
+ * These read from the --brand-* CSS variables so they respond to runtime overrides.
+ */
+.bg-brand-primary { background-color: var(--brand-primary); }
+.bg-brand-secondary { background-color: var(--brand-secondary); }
+.bg-brand-accent { background-color: var(--brand-accent); }
+.bg-brand-primary-light { background-color: var(--brand-primary-light); }
+.bg-brand-primary-lighter { background-color: var(--brand-primary-lighter); }
+.bg-brand-accent-light { background-color: var(--brand-accent-light); }
+.bg-brand-accent-lighter { background-color: var(--brand-accent-lighter); }
+.bg-brand-primary-shadow { background-color: var(--brand-primary-shadow); }
+
+.text-brand-primary { color: var(--brand-primary); }
+.text-brand-secondary { color: var(--brand-secondary); }
+.text-brand-accent { color: var(--brand-accent); }
+.text-brand-primary-dark { color: var(--brand-primary-dark); }
+
+.border-brand-primary { border-color: var(--brand-primary); }
+.border-brand-accent { border-color: var(--brand-accent); }
+.border-brand-primary-light { border-color: var(--brand-primary-light); }
+.border-brand-accent-light { border-color: var(--brand-accent-light); }
+
+.ring-brand-primary-light { --tw-ring-color: var(--brand-primary-light); }
+
+.shadow-brand-primary { --tw-shadow-color: var(--brand-primary-shadow); }
+
+.gradient-brand-header {
+  background: linear-gradient(to bottom right, var(--brand-primary), var(--brand-secondary));
+}
+
+.gradient-brand-light {
+  background: linear-gradient(to right, var(--brand-primary-lighter), color-mix(in srgb, var(--brand-secondary) 8%, white));
+}
+
+/* Focus/active states for branded inputs */
+.focus-brand:focus {
+  border-color: var(--brand-primary) !important;
+}
+
+/* Explicit dark mode utilities for custom brand colors */
+.dark .dark\:bg-brand-primary-shadow { background-color: var(--brand-primary-shadow) !important; }
+.dark .dark\:border-brand-primary-shadow { border-color: var(--brand-primary-shadow) !important; }
+.dark .dark\:text-brand-primary-light { color: var(--brand-primary-light) !important; }
+.dark .dark\:bg-brand-primary-dark { background-color: var(--brand-primary-dark) !important; }

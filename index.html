@@ -4,7 +4,22 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>order-it</title>
+    <title>OrderIt</title>
+    <style>
+      /* Prevent white flash before React loads */
+      html.dark body { background-color: #020617; color: #f8fafc; }
+      html:not(.dark) body { background-color: #f9fafb; color: #0f172a; }
+      body { transition: background-color 0.1s ease; }
+    </style>
+    <script>
+      (function() {
+        try {
+          var theme = localStorage.getItem('orderit-ui-theme');
+          var isDark = theme === 'dark' || (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          if (isDark) document.documentElement.classList.add('dark');
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

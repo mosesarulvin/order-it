@@ -8,7 +8,7 @@ export function Skeleton({ className }: SkeletonProps) {
   return (
     <div
       className={cn(
-        'animate-pulse rounded-xl bg-gray-200',
+        'animate-pulse rounded-xl bg-gray-200 dark:bg-slate-800',
         className
       )}
     />
@@ -17,7 +17,7 @@ export function Skeleton({ className }: SkeletonProps) {
 
 export function MenuItemSkeleton() {
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 p-4 flex gap-4">
+    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 p-4 flex gap-4">
       <Skeleton className="w-20 h-20 rounded-xl flex-shrink-0" />
       <div className="flex-1 space-y-2">
         <Skeleton className="h-4 w-3/4" />
@@ -34,7 +34,7 @@ export function MenuItemSkeleton() {
 
 export function OrderCardSkeleton() {
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3">
+    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 p-5 space-y-3">
       <div className="flex justify-between">
         <Skeleton className="h-5 w-24" />
         <Skeleton className="h-5 w-16 rounded-full" />

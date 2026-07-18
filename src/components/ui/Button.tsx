@@ -14,13 +14,13 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 
     const variants = {
       primary:
-        'bg-orange-500 text-white hover:bg-orange-600 active:bg-orange-700 focus-visible:ring-orange-500 shadow-sm shadow-orange-200',
+        'bg-brand-primary text-white hover:opacity-90 active:bg-brand-primary-dark focus-visible:ring-brand-primary shadow-sm shadow-brand-primary',
       secondary:
-        'bg-orange-50 text-orange-700 hover:bg-orange-100 active:bg-orange-200 focus-visible:ring-orange-300',
+        'bg-brand-primary-lighter text-brand-primary-dark hover:bg-brand-primary-light active:bg-brand-primary-lighter focus-visible:ring-brand-primary-light dark:bg-brand-primary-shadow dark:text-brand-primary-light dark:hover:opacity-90',
       outline:
-        'border-2 border-gray-200 text-gray-700 hover:border-gray-300 hover:bg-gray-50 focus-visible:ring-gray-300',
+        'border-2 border-gray-200 dark:border-slate-700 text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:hover:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-800 focus-visible:ring-gray-300',
       ghost:
-        'text-gray-600 hover:bg-gray-100 hover:text-gray-900 focus-visible:ring-gray-300',
+        'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-800 hover:text-gray-900 dark:hover:text-white focus-visible:ring-gray-300',
       danger:
         'bg-red-500 text-white hover:bg-red-600 active:bg-red-700 focus-visible:ring-red-500 shadow-sm',
     }

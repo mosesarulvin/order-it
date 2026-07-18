@@ -103,17 +103,17 @@ export default function StockPage() {
   return (
     <div className="space-y-6 max-w-4xl">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Stock Management</h1>
-        <p className="text-gray-500 mt-1 text-sm">Track and update inventory for your menu items.</p>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Stock Management</h1>
+        <p className="text-gray-500 dark:text-gray-400 mt-1 text-sm">Track and update inventory for your menu items.</p>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit">
+      <div className="flex gap-1 bg-gray-100 dark:bg-slate-800 p-1 rounded-xl w-fit">
         {(['stock', 'log'] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={`px-5 py-2 rounded-lg text-sm font-medium transition-all ${tab === t ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+            className={`px-5 py-2 rounded-lg text-sm font-medium transition-all ${tab === t ? 'bg-white dark:bg-slate-700 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}
           >
             {t === 'stock' ? 'Current Stock' : 'Movement Log'}
           </button>
@@ -129,36 +129,36 @@ export default function StockPage() {
               </div>
             ) : items.length === 0 ? (
               <div className="py-16 text-center">
-                <Package size={40} className="text-gray-200 mx-auto mb-3" />
-                <p className="font-medium text-gray-500">No tracked items</p>
-                <p className="text-sm text-gray-400 mt-1">Enable "Track stock" on menu items to see them here.</p>
+                <Package size={40} className="text-gray-200 dark:text-slate-700 mx-auto mb-3" />
+                <p className="font-medium text-gray-500 dark:text-gray-400">No tracked items</p>
+                <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">Enable "Track stock" on menu items to see them here.</p>
               </div>
             ) : (
-              <div className="divide-y divide-gray-50">
+              <div className="divide-y divide-gray-50 dark:divide-slate-800">
                 {items.map((item) => {
                   const isOut = item.stock_quantity === 0
                   const isLow = !isOut && item.stock_quantity !== null && item.stock_quantity <= item.low_stock_threshold
                   return (
                     <div key={item.id} className="flex items-center gap-4 px-5 py-3.5">
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium text-gray-900 text-sm">{item.name}</p>
+                        <p className="font-medium text-gray-900 dark:text-white text-sm">{item.name}</p>
                         <div className="flex items-center gap-2 mt-0.5">
                           <span className={`text-xs font-semibold ${isOut ? 'text-red-600' : isLow ? 'text-orange-600' : 'text-green-600'}`}>
                             {isOut ? 'Out of stock' : isLow ? `${item.stock_quantity} left (low)` : `${item.stock_quantity} in stock`}
                           </span>
-                          <span className="text-xs text-gray-400">· alert at {item.low_stock_threshold}</span>
+                          <span className="text-xs text-gray-400 dark:text-gray-500">· alert at {item.low_stock_threshold}</span>
                         </div>
                       </div>
                       <div className="flex gap-2">
                         <button
                           onClick={() => openAdjust(item, 'restock')}
-                          className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-green-50 text-green-700 hover:bg-green-100 transition-colors"
+                          className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/50 transition-colors"
                         >
                           <ArrowUp size={12} /> Restock
                         </button>
                         <button
                           onClick={() => openAdjust(item, 'adjustment')}
-                          className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
+                          className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors"
                         >
                           <Minus size={12} /> Adjust
                         </button>
@@ -181,33 +181,33 @@ export default function StockPage() {
               </div>
             ) : logs.length === 0 ? (
               <div className="py-16 text-center">
-                <RefreshCw size={40} className="text-gray-200 mx-auto mb-3" />
-                <p className="font-medium text-gray-500">No movements yet</p>
+                <RefreshCw size={40} className="text-gray-200 dark:text-slate-700 mx-auto mb-3" />
+                <p className="font-medium text-gray-500 dark:text-gray-400">No movements yet</p>
               </div>
             ) : (
               <>
-                <div className="divide-y divide-gray-50">
+                <div className="divide-y divide-gray-50 dark:divide-slate-800">
                   {logs.map((log) => (
                     <div key={log.id} className="flex items-center gap-4 px-5 py-3">
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${log.delta > 0 ? 'bg-green-50' : 'bg-red-50'}`}>
-                        {log.delta > 0 ? <ArrowUp size={14} className="text-green-600" /> : <ArrowDown size={14} className="text-red-600" />}
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${log.delta > 0 ? 'bg-green-50 dark:bg-green-900/30' : 'bg-red-50 dark:bg-red-900/30'}`}>
+                        {log.delta > 0 ? <ArrowUp size={14} className="text-green-600 dark:text-green-500" /> : <ArrowDown size={14} className="text-red-600 dark:text-red-500" />}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900">{log.item_name}</p>
-                        <p className="text-xs text-gray-400">{log.reason}{log.note ? ` · ${log.note}` : ''}</p>
+                        <p className="text-sm font-medium text-gray-900 dark:text-white">{log.item_name}</p>
+                        <p className="text-xs text-gray-400 dark:text-gray-500">{log.reason}{log.note ? ` · ${log.note}` : ''}</p>
                       </div>
                       <div className="text-right">
-                        <p className={`text-sm font-bold ${log.delta > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        <p className={`text-sm font-bold ${log.delta > 0 ? 'text-green-600 dark:text-green-500' : 'text-red-600 dark:text-red-500'}`}>
                           {log.delta > 0 ? `+${log.delta}` : log.delta}
                         </p>
-                        <p className="text-xs text-gray-400">{formatDate(log.created_at)}</p>
+                        <p className="text-xs text-gray-400 dark:text-gray-500">{formatDate(log.created_at)}</p>
                       </div>
                     </div>
                   ))}
                 </div>
-                <div className="flex justify-between items-center px-5 py-3 border-t border-gray-100">
+                <div className="flex justify-between items-center px-5 py-3 border-t border-gray-100 dark:border-slate-800">
                   <Button variant="outline" size="sm" disabled={logPage === 0} onClick={() => setLogPage((p) => p - 1)}>← Prev</Button>
-                  <span className="text-xs text-gray-400">Page {logPage + 1}</span>
+                  <span className="text-xs text-gray-400 dark:text-gray-500">Page {logPage + 1}</span>
                   <Button variant="outline" size="sm" disabled={logs.length < LOG_PAGE_SIZE} onClick={() => setLogPage((p) => p + 1)}>Next →</Button>
                 </div>
               </>
@@ -224,8 +224,8 @@ export default function StockPage() {
         size="sm"
       >
         <div className="space-y-4">
-          <p className="text-sm text-gray-500">
-            Current stock: <span className="font-semibold text-gray-900">{adjustModal?.item.stock_quantity ?? 0}</span>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Current stock: <span className="font-semibold text-gray-900 dark:text-white">{adjustModal?.item.stock_quantity ?? 0}</span>
           </p>
           <Input
             label={adjustModal?.mode === 'restock' ? 'Quantity to add' : 'Quantity change (use - to reduce)'}

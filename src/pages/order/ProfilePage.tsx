@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { User, Phone, Mail, CalendarDays, ArrowLeft, Gift } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/Button'
@@ -8,9 +8,10 @@ import toast from 'react-hot-toast'
 export default function ProfilePage() {
   const { slug } = useParams<{ slug: string }>()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
 
-  const [name, setName] = useState('')
-  const [phone, setPhone] = useState('')
+  const [name, setName] = useState(searchParams.get('name') || '')
+  const [phone, setPhone] = useState(searchParams.get('phone') || '')
   const [email, setEmail] = useState('')
   const [birthday, setBirthday] = useState('')
   const [loading, setLoading] = useState(false)
@@ -95,9 +96,9 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-slate-950">
       {/* Header */}
-      <div className="bg-gradient-to-br from-orange-500 to-amber-500 text-white px-4 pt-safe pb-10">
+      <div className="gradient-brand-header text-white px-4 pt-safe pb-10">
         <div className="max-w-lg mx-auto pt-4">
           <button onClick={() => navigate(`/order/${slug}`)} className="flex items-center gap-2 text-white/80 hover:text-white mb-4 text-sm">
             <ArrowLeft size={16} /> Back to menu
@@ -116,69 +117,69 @@ export default function ProfilePage() {
 
       <div className="max-w-lg mx-auto px-4 -mt-4 pb-8 space-y-4">
         {/* Perks card */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-4 space-y-2 shadow-sm">
-          <p className="font-semibold text-gray-900 text-sm">Why create a profile?</p>
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-4 space-y-2 shadow-sm">
+          <p className="font-semibold text-gray-900 dark:text-white text-sm">Why create a profile?</p>
           <div className="space-y-1.5">
             {['🎁 Get a welcome discount on your first order', '🎂 Receive birthday offers', '📣 Shop promotions sent directly to you', '📋 View your complete order history'].map((perk) => (
-              <p key={perk} className="text-sm text-gray-600">{perk}</p>
+              <p key={perk} className="text-sm text-gray-600 dark:text-gray-300">{perk}</p>
             ))}
           </div>
-          <p className="text-xs text-gray-400 pt-1">Optional — you can still order without a profile.</p>
+          <p className="text-xs text-gray-400 dark:text-gray-500 pt-1">Optional — you can still order without a profile.</p>
         </div>
 
         {/* Form */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-4 space-y-4">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-4 space-y-4">
           <div className="space-y-1">
-            <label className="block text-sm font-medium text-gray-700">Your name *</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Your name *</label>
             <div className="relative">
-              <User size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+              <User size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 pointer-events-none" />
               <input
                 type="text"
                 placeholder="e.g. Arjun Kumar"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="w-full h-10 pl-9 pr-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-orange-400 transition-colors"
+                className="w-full h-10 pl-9 pr-3 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 text-sm outline-none focus-brand transition-colors"
               />
             </div>
           </div>
 
           <div className="space-y-1">
-            <label className="block text-sm font-medium text-gray-700">Mobile number *</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Mobile number *</label>
             <div className="relative">
-              <Phone size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+              <Phone size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 pointer-events-none" />
               <input
                 type="tel"
                 placeholder="98765 43210"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                className="w-full h-10 pl-9 pr-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-orange-400 transition-colors"
+                className="w-full h-10 pl-9 pr-3 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 text-sm outline-none focus-brand transition-colors"
               />
             </div>
           </div>
 
           <div className="space-y-1">
-            <label className="block text-sm font-medium text-gray-700">Email <span className="text-gray-400 font-normal">(optional)</span></label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Email <span className="text-gray-400 dark:text-gray-500 font-normal">(optional)</span></label>
             <div className="relative">
-              <Mail size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+              <Mail size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 pointer-events-none" />
               <input
                 type="email"
                 placeholder="you@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full h-10 pl-9 pr-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-orange-400 transition-colors"
+                className="w-full h-10 pl-9 pr-3 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 text-sm outline-none focus-brand transition-colors"
               />
             </div>
           </div>
 
           <div className="space-y-1">
-            <label className="block text-sm font-medium text-gray-700">Birthday <span className="text-gray-400 font-normal">(optional — for birthday offers)</span></label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Birthday <span className="text-gray-400 dark:text-gray-500 font-normal">(optional — for birthday offers)</span></label>
             <div className="relative">
-              <CalendarDays size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+              <CalendarDays size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 pointer-events-none" />
               <input
                 type="date"
                 value={birthday}
                 onChange={(e) => setBirthday(e.target.value)}
-                className="w-full h-10 pl-9 pr-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-orange-400 transition-colors"
+                className="w-full h-10 pl-9 pr-3 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 text-sm outline-none focus-brand transition-colors [color-scheme:light] dark:[color-scheme:dark]"
               />
             </div>
           </div>

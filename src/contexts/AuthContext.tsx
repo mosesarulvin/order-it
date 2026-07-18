@@ -3,10 +3,14 @@ import type { User, Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import type { Shop } from '@/types'
 
+export type UserRole = 'owner' | 'manager' | 'staff' | null
+
 interface AuthContextValue {
   user: User | null
   session: Session | null
   shop: Shop | null
+  userRole: UserRole
+  isSuperAdmin: boolean
   loading: boolean
   signIn: (email: string, password: string) => Promise<void>
   signUp: (email: string, password: string, shopName: string) => Promise<void>
@@ -22,14 +26,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [shop, setShop] = useState<Shop | null>(null)
   const [loading, setLoading] = useState(true)
 
+  const [userRole, setUserRole] = useState<UserRole>(null)
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false)
+
   const fetchShop = async (userId: string) => {
-    const { data, error } = await supabase
-      .from('shops')
-      .select('*')
-      .eq('owner_id', userId)
-      .single()
-    if (error) console.error('fetchShop error:', error.message, error.code)
-    setShop(data)
+    // 1. Check if super admin
+    const { data: profile } = await supabase.from('user_profiles').select('is_super_admin').eq('id', userId).maybeSingle()
+    setIsSuperAdmin(profile?.is_super_admin ?? false)
+
+    // 2. Fetch role from shop_staff
+    const { data: staffData } = await supabase.from('shop_staff').select('role, shop_id').eq('user_id', userId).maybeSingle()
+    
+    let currentShop = null
+    let currentRole: UserRole = null
+
+    if (staffData) {
+      currentRole = staffData.role as UserRole
+      const { data: shopData } = await supabase.from('shops').select('*').eq('id', staffData.shop_id).maybeSingle()
+      currentShop = shopData
+    } else {
+      // Fallback for existing owners before migration
+      const { data: shopData } = await supabase.from('shops').select('*').eq('owner_id', userId).maybeSingle()
+      if (shopData) {
+        currentShop = shopData
+        currentRole = 'owner'
+      }
+    }
+
+    setShop(currentShop)
+    setUserRole(currentRole)
   }
 
   const refreshShop = async () => {
@@ -51,6 +76,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         fetchShop(session.user.id)
       } else {
         setShop(null)
+        setUserRole(null)
+        setIsSuperAdmin(false)
       }
       setLoading(false)
     })
@@ -85,10 +112,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signOut = async () => {
     await supabase.auth.signOut()
     setShop(null)
+    setUserRole(null)
+    setIsSuperAdmin(false)
   }
 
   return (
-    <AuthContext.Provider value={{ user, session, shop, loading, signIn, signUp, signOut, refreshShop }}>
+    <AuthContext.Provider value={{ user, session, shop, userRole, isSuperAdmin, loading, signIn, signUp, signOut, refreshShop }}>
       {children}
     </AuthContext.Provider>
   )

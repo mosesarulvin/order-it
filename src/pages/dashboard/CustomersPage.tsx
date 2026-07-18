@@ -153,27 +153,27 @@ export default function CustomersPage() {
     <div className="space-y-5 max-w-5xl">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Customers</h1>
-          <p className="text-gray-500 text-sm mt-0.5">Profiles created by your customers</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Customers</h1>
+          <p className="text-gray-500 dark:text-gray-400 text-sm mt-0.5">Profiles created by your customers</p>
         </div>
-        <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-3 h-9 w-60">
-          <Search size={15} className="text-gray-400 flex-shrink-0" />
+        <div className="flex items-center gap-2 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl px-3 h-9 w-60">
+          <Search size={15} className="text-gray-400 dark:text-gray-500 flex-shrink-0" />
           <input
             type="text"
             placeholder="Search name, phone..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="flex-1 text-sm outline-none bg-transparent"
+            className="flex-1 text-sm outline-none bg-transparent dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500"
           />
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-fit">
-        <button onClick={() => setTab('all')} className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${tab === 'all' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+      <div className="flex gap-1 bg-gray-100 dark:bg-slate-800 rounded-xl p-1 w-fit">
+        <button onClick={() => setTab('all')} className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${tab === 'all' ? 'bg-white dark:bg-slate-700 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}>
           All ({profiles.length})
         </button>
-        <button onClick={() => setTab('birthdays')} className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${tab === 'birthdays' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+        <button onClick={() => setTab('birthdays')} className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${tab === 'birthdays' ? 'bg-white dark:bg-slate-700 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}>
           🎂 Birthdays this month ({birthdayProfiles.length})
         </button>
       </div>
@@ -182,11 +182,11 @@ export default function CustomersPage() {
         <div className="space-y-2">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-16 rounded-2xl" />)}</div>
       ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center">
-          <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-            <Users size={28} className="text-gray-300" />
+          <div className="w-16 h-16 bg-gray-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-4">
+            <Users size={28} className="text-gray-300 dark:text-slate-600" />
           </div>
-          <p className="font-medium text-gray-500">{tab === 'birthdays' ? 'No birthdays this month' : 'No customers yet'}</p>
-          <p className="text-gray-400 text-sm mt-1">{tab === 'birthdays' ? 'Check back later' : 'Customers who create a profile on your menu page will appear here'}</p>
+          <p className="font-medium text-gray-500 dark:text-gray-400">{tab === 'birthdays' ? 'No birthdays this month' : 'No customers yet'}</p>
+          <p className="text-gray-400 dark:text-gray-500 text-sm mt-1">{tab === 'birthdays' ? 'Check back later' : 'Customers who create a profile on your menu page will appear here'}</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -196,7 +196,7 @@ export default function CustomersPage() {
             return (
               <div
                 key={profile.id}
-                className="bg-white rounded-2xl border border-gray-100 p-4 flex items-center gap-4 hover:border-orange-200 transition-colors cursor-pointer"
+                className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 p-4 flex items-center gap-4 hover:border-orange-200 dark:hover:border-orange-500/50 transition-colors cursor-pointer"
                 onClick={() => openDrawer(profile)}
               >
                 <div className="w-10 h-10 bg-orange-50 rounded-xl flex items-center justify-center flex-shrink-0">
@@ -204,32 +204,32 @@ export default function CustomersPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-semibold text-gray-900 text-sm">{profile.name}</span>
-                    {isBday && <span className="text-xs bg-pink-100 text-pink-600 px-2 py-0.5 rounded-full">🎂 Birthday this month!</span>}
+                    <span className="font-semibold text-gray-900 dark:text-white text-sm">{profile.name}</span>
+                    {isBday && <span className="text-xs bg-pink-100 dark:bg-pink-900/30 text-pink-600 dark:text-pink-400 px-2 py-0.5 rounded-full">🎂 Birthday this month!</span>}
                   </div>
-                  <p className="text-xs text-gray-400 mt-0.5">{profile.phone}{profile.email ? ` · ${profile.email}` : ''}</p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{profile.phone}{profile.email ? ` · ${profile.email}` : ''}</p>
                 </div>
                 <div className="text-right flex-shrink-0">
-                  <p className="text-sm font-semibold text-gray-900">{stats ? formatCurrency(stats.total) : '—'}</p>
-                  <p className="text-xs text-gray-400">{stats ? `${stats.count} orders` : 'No orders'}</p>
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">{stats ? formatCurrency(stats.total) : '—'}</p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500">{stats ? `${stats.count} orders` : 'No orders'}</p>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
                   {isBday && (
                     <button
                       onClick={(e) => { e.stopPropagation(); setSendCouponTarget(profile); setSelectedCouponId('') }}
-                      className="px-2.5 py-1.5 rounded-lg bg-pink-50 text-pink-600 text-xs font-semibold hover:bg-pink-100 transition-colors"
+                      className="px-2.5 py-1.5 rounded-lg bg-pink-50 dark:bg-pink-900/30 text-pink-600 dark:text-pink-400 text-xs font-semibold hover:bg-pink-100 dark:hover:bg-pink-900/50 transition-colors"
                     >
                       🎂 Send Coupon
                     </button>
                   )}
                   <button
                     onClick={(e) => { e.stopPropagation(); setSendCouponTarget(profile); setSelectedCouponId('') }}
-                    className="p-2 text-gray-400 hover:text-orange-500 hover:bg-orange-50 rounded-lg transition-colors"
+                    className="p-2 text-gray-400 dark:text-gray-500 hover:text-orange-500 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/30 rounded-lg transition-colors"
                     title="Send coupon"
                   >
                     <Gift size={16} />
                   </button>
-                  <ChevronRight size={16} className="text-gray-300" />
+                  <ChevronRight size={16} className="text-gray-300 dark:text-slate-600" />
                 </div>
               </div>
             )
@@ -241,7 +241,7 @@ export default function CustomersPage() {
       {selected && (
         <div className="fixed inset-0 z-50 flex justify-end">
           <div className="absolute inset-0 bg-black/30" onClick={() => setSelected(null)} />
-          <div className="relative w-full max-w-md bg-white h-full flex flex-col shadow-2xl overflow-hidden">
+          <div className="relative w-full max-w-md bg-white dark:bg-slate-900 h-full flex flex-col shadow-2xl overflow-hidden">
             {/* Drawer header */}
             <div className="bg-gradient-to-br from-orange-500 to-amber-500 text-white p-5 flex-shrink-0">
               <div className="flex items-start justify-between">
@@ -278,10 +278,10 @@ export default function CustomersPage() {
             </div>
 
             {/* Send coupon quick action */}
-            <div className="px-4 py-3 border-b border-gray-100 flex-shrink-0">
+            <div className="px-4 py-3 border-b border-gray-100 dark:border-slate-800 flex-shrink-0">
               <button
                 onClick={() => { setSendCouponTarget(selected); setSelectedCouponId('') }}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-orange-50 text-orange-600 text-sm font-semibold hover:bg-orange-100 transition-colors border border-orange-200"
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-orange-50 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 text-sm font-semibold hover:bg-orange-100 dark:hover:bg-orange-900/50 transition-colors border border-orange-200 dark:border-orange-800"
               >
                 <Tag size={14} /> Send a Coupon
               </button>
@@ -295,16 +295,16 @@ export default function CustomersPage() {
                 <>
                   {profileCoupons.length > 0 && (
                     <div>
-                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Assigned Coupons</p>
+                      <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">Assigned Coupons</p>
                       <div className="space-y-2">
                         {profileCoupons.map((pc) => (
-                          <div key={pc.id} className={`flex items-center gap-3 p-3 rounded-xl border ${pc.used_at ? 'border-gray-100 opacity-60' : 'border-dashed border-orange-300 bg-orange-50/50'}`}>
-                            <Tag size={14} className={pc.used_at ? 'text-gray-400' : 'text-orange-500'} />
+                          <div key={pc.id} className={`flex items-center gap-3 p-3 rounded-xl border ${pc.used_at ? 'border-gray-100 dark:border-slate-700 opacity-60' : 'border-dashed border-orange-300 dark:border-orange-800 bg-orange-50/50 dark:bg-orange-900/20'}`}>
+                            <Tag size={14} className={pc.used_at ? 'text-gray-400 dark:text-gray-500' : 'text-orange-500'} />
                             <div className="flex-1 min-w-0">
-                              <p className={`font-mono font-bold text-sm ${pc.used_at ? 'text-gray-400 line-through' : 'text-gray-900'}`}>{pc.coupon_code}</p>
-                              <p className="text-xs text-gray-400">{pc.label}{pc.used_at ? ` · Used ${formatDate(pc.used_at)}` : ''}</p>
+                              <p className={`font-mono font-bold text-sm ${pc.used_at ? 'text-gray-400 dark:text-gray-500 line-through' : 'text-gray-900 dark:text-white'}`}>{pc.coupon_code}</p>
+                              <p className="text-xs text-gray-400 dark:text-gray-500">{pc.label}{pc.used_at ? ` · Used ${formatDate(pc.used_at)}` : ''}</p>
                             </div>
-                            {!pc.used_at && <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Active</span>}
+                            {!pc.used_at && <span className="text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-2 py-0.5 rounded-full">Active</span>}
                           </div>
                         ))}
                       </div>
@@ -312,20 +312,20 @@ export default function CustomersPage() {
                   )}
 
                   <div>
-                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Order History</p>
+                    <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">Order History</p>
                     {profileOrders.length === 0 ? (
-                      <p className="text-sm text-gray-400 text-center py-4">No orders yet</p>
+                      <p className="text-sm text-gray-400 dark:text-gray-500 text-center py-4">No orders yet</p>
                     ) : (
                       <div className="space-y-2">
                         {profileOrders.map((order) => (
-                          <div key={order.id} className="bg-white rounded-xl border border-gray-100 p-3">
+                          <div key={order.id} className="bg-white dark:bg-slate-800 rounded-xl border border-gray-100 dark:border-slate-700 p-3">
                             <div className="flex items-center justify-between mb-1">
-                              <span className="font-mono font-semibold text-xs text-gray-700">{order.order_number}</span>
-                              <span className={`text-xs px-2 py-0.5 rounded-full font-medium capitalize ${statusColors[order.status] ?? 'bg-gray-100 text-gray-500'}`}>{order.status}</span>
+                              <span className="font-mono font-semibold text-xs text-gray-700 dark:text-gray-300">{order.order_number}</span>
+                              <span className={`text-xs px-2 py-0.5 rounded-full font-medium capitalize ${statusColors[order.status] ?? 'bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-gray-300'}`}>{order.status}</span>
                             </div>
-                            <div className="flex justify-between text-xs text-gray-400">
+                            <div className="flex justify-between text-xs text-gray-400 dark:text-gray-500">
                               <span>{formatDate(order.created_at)}</span>
-                              <span className="font-semibold text-gray-700">{formatCurrency(order.total)}</span>
+                              <span className="font-semibold text-gray-700 dark:text-gray-200">{formatCurrency(order.total)}</span>
                             </div>
                           </div>
                         ))}
@@ -348,18 +348,18 @@ export default function CustomersPage() {
       >
         <div className="space-y-4">
           {shopCoupons.length === 0 ? (
-            <p className="text-sm text-gray-500 text-center py-4">No active coupons. Create one in the Coupons page first.</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">No active coupons. Create one in the Coupons page first.</p>
           ) : (
             <>
-              <p className="text-sm text-gray-600">Select a coupon to assign to this customer's profile:</p>
+              <p className="text-sm text-gray-600 dark:text-gray-300">Select a coupon to assign to this customer's profile:</p>
               <div className="space-y-2">
                 {shopCoupons.map((coupon) => (
-                  <label key={coupon.id} className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${selectedCouponId === coupon.id ? 'border-orange-400 bg-orange-50' : 'border-gray-200'}`}>
+                  <label key={coupon.id} className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${selectedCouponId === coupon.id ? 'border-orange-400 bg-orange-50 dark:bg-orange-900/30' : 'border-gray-200 dark:border-slate-700'}`}>
                     <input type="radio" value={coupon.id} checked={selectedCouponId === coupon.id} onChange={() => setSelectedCouponId(coupon.id)} className="sr-only" />
                     <Tag size={14} className="text-orange-500 flex-shrink-0" />
                     <div className="flex-1">
-                      <span className="font-mono font-bold text-sm">{coupon.code}</span>
-                      <span className="text-xs text-gray-500 ml-2">
+                      <span className="font-mono font-bold text-sm dark:text-white">{coupon.code}</span>
+                      <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">
                         {coupon.type === 'percentage' ? `${coupon.value}% off` : `₹${coupon.value} off`}
                         {coupon.min_order_amount ? ` · min ₹${coupon.min_order_amount}` : ''}
                       </span>
@@ -368,7 +368,7 @@ export default function CustomersPage() {
                 ))}
               </div>
               <div className="flex gap-3 pt-1">
-                <button onClick={() => { setSendCouponTarget(null); setSelectedCouponId('') }} className="flex-1 py-2 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
+                <button onClick={() => { setSendCouponTarget(null); setSelectedCouponId('') }} className="flex-1 py-2 rounded-xl border border-gray-200 dark:border-slate-700 text-sm font-semibold text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors">
                   Cancel
                 </button>
                 <button

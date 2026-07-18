@@ -124,8 +124,8 @@ export default function CouponsPage() {
     <div className="space-y-6 max-w-4xl">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Coupons</h1>
-          <p className="text-gray-500 mt-1 text-sm">Create discount codes for your customers.</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Coupons</h1>
+          <p className="text-gray-500 dark:text-gray-400 mt-1 text-sm">Create discount codes for your customers.</p>
         </div>
         <Button onClick={openAdd}><Plus size={16} className="mr-1.5" />New Coupon</Button>
       </div>
@@ -137,9 +137,9 @@ export default function CouponsPage() {
       ) : coupons.length === 0 ? (
         <Card>
           <CardContent className="py-16 text-center">
-            <Tag size={40} className="text-gray-200 mx-auto mb-3" />
-            <p className="font-medium text-gray-500">No coupons yet</p>
-            <p className="text-sm text-gray-400 mt-1">Create your first coupon to offer discounts.</p>
+            <Tag size={40} className="text-gray-200 dark:text-slate-700 mx-auto mb-3" />
+            <p className="font-medium text-gray-500 dark:text-gray-400">No coupons yet</p>
+            <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">Create your first coupon to offer discounts.</p>
           </CardContent>
         </Card>
       ) : (
@@ -147,31 +147,31 @@ export default function CouponsPage() {
           {coupons.map((coupon) => (
             <Card key={coupon.id} className={!coupon.is_active ? 'opacity-60' : ''}>
               <CardContent className="p-4 flex items-start gap-4">
-                <div className="w-11 h-11 bg-orange-50 rounded-xl flex items-center justify-center flex-shrink-0">
+                <div className="w-11 h-11 bg-orange-50 dark:bg-orange-900/30 rounded-xl flex items-center justify-center flex-shrink-0">
                   <Tag size={18} className="text-orange-500" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-bold text-gray-900 font-mono tracking-wide">{coupon.code}</span>
-                    {(() => { const ct = COUPON_TYPES.find(t => t.value === coupon.coupon_type); return ct && ct.badge ? <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium">{ct.badge} {ct.label}</span> : null })()}
-                    <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full font-semibold">
+                    <span className="font-bold text-gray-900 dark:text-white font-mono tracking-wide">{coupon.code}</span>
+                    {(() => { const ct = COUPON_TYPES.find(t => t.value === coupon.coupon_type); return ct && ct.badge ? <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 font-medium">{ct.badge} {ct.label}</span> : null })()}
+                    <span className="text-xs bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 px-2 py-0.5 rounded-full font-semibold">
                       {coupon.type === 'percentage' ? `${coupon.value}% off` : `${formatCurrency(coupon.value)} off`}
                     </span>
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${coupon.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${coupon.is_active ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' : 'bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-gray-300'}`}>
                       {coupon.is_active ? 'Active' : 'Inactive'}
                     </span>
                   </div>
-                  <div className="flex flex-wrap gap-3 mt-1.5 text-xs text-gray-400">
+                  <div className="flex flex-wrap gap-3 mt-1.5 text-xs text-gray-400 dark:text-gray-500">
                     {coupon.min_order_amount ? <span>Min. order {formatCurrency(coupon.min_order_amount)}</span> : null}
                     <span>Used {coupon.used_count}{coupon.max_uses ? `/${coupon.max_uses}` : ''} times</span>
                     <span>Expires: {formatExpiry(coupon.expires_at)}</span>
                   </div>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
-                  <button onClick={() => openEdit(coupon)} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
+                  <button onClick={() => openEdit(coupon)} className="p-2 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
                     <Pencil size={15} />
                   </button>
-                  <button onClick={() => toggleActive(coupon)} className={`p-2 rounded-lg transition-colors ${coupon.is_active ? 'text-green-600 hover:bg-green-50' : 'text-gray-400 hover:bg-gray-100'}`}>
+                  <button onClick={() => toggleActive(coupon)} className={`p-2 rounded-lg transition-colors ${coupon.is_active ? 'text-green-600 dark:text-green-500 hover:bg-green-50 dark:hover:bg-green-900/30' : 'text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-800'}`}>
                     {coupon.is_active ? <ToggleRight size={18} /> : <ToggleLeft size={18} />}
                   </button>
                 </div>
@@ -196,25 +196,25 @@ export default function CouponsPage() {
             {...form.register('code')}
           />
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Coupon purpose</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Coupon purpose</label>
             <div className="grid grid-cols-2 gap-2">
               {COUPON_TYPES.map((ct) => (
                 <label key={ct.value} className={`flex items-center gap-2 p-2.5 rounded-xl border-2 cursor-pointer transition-all ${
-                  form.watch('coupon_type') === ct.value ? 'border-orange-400 bg-orange-50' : 'border-gray-200'
+                  form.watch('coupon_type') === ct.value ? 'border-orange-400 dark:border-orange-500 bg-orange-50 dark:bg-orange-900/30' : 'border-gray-200 dark:border-slate-700 dark:hover:border-slate-600'
                 }`}>
                   <input type="radio" value={ct.value} {...form.register('coupon_type')} className="sr-only" />
-                  <span className="text-sm font-medium">{ct.badge} {ct.label}</span>
+                  <span className="text-sm font-medium dark:text-white">{ct.badge} {ct.label}</span>
                 </label>
               ))}
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Discount type</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Discount type</label>
             <div className="flex gap-3">
               {(['percentage', 'amount'] as const).map((t) => (
-                <label key={t} className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-xl border-2 cursor-pointer transition-all ${form.watch('type') === t ? 'border-orange-400 bg-orange-50' : 'border-gray-200'}`}>
+                <label key={t} className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-xl border-2 cursor-pointer transition-all ${form.watch('type') === t ? 'border-orange-400 dark:border-orange-500 bg-orange-50 dark:bg-orange-900/30' : 'border-gray-200 dark:border-slate-700 dark:hover:border-slate-600'}`}>
                   <input type="radio" value={t} {...form.register('type')} className="sr-only" />
-                  <span className="text-sm font-medium">{t === 'percentage' ? '% Percentage' : '₹ Fixed Amount'}</span>
+                  <span className="text-sm font-medium dark:text-white">{t === 'percentage' ? '% Percentage' : '₹ Fixed Amount'}</span>
                 </label>
               ))}
             </div>

@@ -227,8 +227,8 @@ export default function MenuPage() {
     <div className="max-w-4xl space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Menu</h2>
-          <p className="text-sm text-gray-500 mt-0.5">{categories.length} categories · {items.length} items</p>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Menu</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{categories.length} categories · {items.length} items</p>
         </div>
         <Button onClick={openAddCategory} className="gap-2">
           <Plus size={16} /> Add Category
@@ -242,9 +242,9 @@ export default function MenuPage() {
       ) : categories.length === 0 ? (
         <Card>
           <CardContent className="py-16 text-center">
-            <Tag size={48} className="text-gray-200 mx-auto mb-4" />
-            <p className="text-xl font-semibold text-gray-700">No menu categories yet</p>
-            <p className="text-gray-400 mt-2 mb-6">Start by adding a category like "Coffee", "Snacks"</p>
+            <Tag size={48} className="text-gray-200 dark:text-slate-700 mx-auto mb-4" />
+            <p className="text-xl font-semibold text-gray-700 dark:text-gray-200">No menu categories yet</p>
+            <p className="text-gray-400 dark:text-gray-500 mt-2 mb-6">Start by adding a category like "Coffee", "Snacks"</p>
             <Button onClick={openAddCategory}><Plus size={16} className="mr-2" /> Add First Category</Button>
           </CardContent>
         </Card>
@@ -259,16 +259,16 @@ export default function MenuPage() {
                 <CardContent className="p-0">
                   {/* Category header */}
                   <div
-                    className="flex items-center gap-3 p-4 cursor-pointer hover:bg-gray-50 rounded-t-2xl transition-colors"
+                    className="flex items-center gap-3 p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800/50 rounded-t-2xl transition-colors"
                     onClick={() => toggleCat(cat.id)}
                   >
                     <GripVertical size={16} className="text-gray-300 flex-shrink-0" />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <h3 className="font-semibold text-gray-900">{cat.name}</h3>
-                        <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">{catItems.length} items</span>
+                        <h3 className="font-semibold text-gray-900 dark:text-white">{cat.name}</h3>
+                        <span className="text-xs bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-gray-400 px-2 py-0.5 rounded-full">{catItems.length} items</span>
                       </div>
-                      {cat.description && <p className="text-sm text-gray-400 mt-0.5">{cat.description}</p>}
+                      {cat.description && <p className="text-sm text-gray-400 dark:text-gray-500 mt-0.5">{cat.description}</p>}
                     </div>
                     <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                       <Button variant="ghost" size="icon" onClick={() => openEditCategory(cat)}>
@@ -286,16 +286,16 @@ export default function MenuPage() {
 
                   {/* Items */}
                   {expanded && (
-                    <div className="border-t border-gray-50">
+                    <div className="border-t border-gray-50 dark:border-slate-800">
                       {catItems.length === 0 ? (
-                        <div className="py-8 text-center text-gray-400 text-sm">
+                        <div className="py-8 text-center text-gray-400 dark:text-gray-500 text-sm">
                           No items in this category.{' '}
                           <button className="text-orange-500 font-medium" onClick={() => openAddItem(cat.id)}>Add one</button>
                         </div>
                       ) : (
-                        <div className="divide-y divide-gray-50">
+                        <div className="divide-y divide-gray-50 dark:divide-slate-800">
                           {catItems.map((item) => (
-                            <div key={item.id} className="flex items-center gap-3 p-4 hover:bg-gray-50/50 transition-colors">
+                            <div key={item.id} className="flex items-center gap-3 p-4 hover:bg-gray-50/50 dark:hover:bg-slate-800/30 transition-colors">
                               {item.image_url ? (
                                 <img src={item.image_url} alt={item.name} className="w-14 h-14 rounded-xl object-cover flex-shrink-0 border border-gray-100" />
                               ) : (
@@ -305,17 +305,17 @@ export default function MenuPage() {
                               )}
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 flex-wrap">
-                                  <span className="font-medium text-gray-900 text-sm">{item.name}</span>
-                                {item.is_instant && <Badge variant="orange"><Zap size={10} className="mr-0.5" />Instant</Badge>}
-                                {item.is_popular && <Badge variant="orange">Popular</Badge>}
-                                {!item.is_available && <Badge variant="default">Unavailable</Badge>}
-                                {item.customization_groups?.length > 0 && <Badge variant="default"><Settings2 size={10} className="mr-0.5" />{item.customization_groups.length} options</Badge>}
-                                {item.stock_quantity !== null && (
-                                  <Badge variant={item.stock_quantity === 0 ? 'default' : item.stock_quantity <= item.low_stock_threshold ? 'orange' : 'default'}>
-                                    <Package size={10} className="mr-0.5" />
-                                    {item.stock_quantity === 0 ? 'Out of stock' : `Stock: ${item.stock_quantity}`}
-                                  </Badge>
-                                )}\n                              </div>
+                                  <span className="font-medium text-gray-900 dark:text-white text-sm">{item.name}</span>
+                                  {item.is_instant && <Badge variant="orange"><Zap size={10} className="mr-0.5" />Instant</Badge>}
+                                  {item.is_popular && <Badge variant="orange">Popular</Badge>}
+                                  {!item.is_available && <Badge variant="default">Unavailable</Badge>}
+                                  {item.customization_groups?.length > 0 && <Badge variant="default"><Settings2 size={10} className="mr-0.5" />{item.customization_groups.length} options</Badge>}
+                                  {item.stock_quantity !== null && (
+                                    <Badge variant={item.stock_quantity === 0 ? 'default' : item.stock_quantity <= item.low_stock_threshold ? 'orange' : 'default'}>
+                                      <Package size={10} className="mr-0.5" />
+                                      {item.stock_quantity === 0 ? 'Out of stock' : `Stock: ${item.stock_quantity}`}
+                                    </Badge>
+                                  )}</div>
                                 {item.description && <p className="text-xs text-gray-400 mt-0.5 truncate max-w-xs">{item.description}</p>}
                                 <p className="text-sm font-semibold text-orange-600 mt-1">{formatCurrency(item.price)}</p>
                               </div>

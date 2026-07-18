@@ -35,19 +35,8 @@ export default function DashboardHome() {
     if (!shop) return
     setLoading(true)
 
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-
-    // Limit revenue stats to last 90 days to keep query fast at scale
-    const ninetyDaysAgo = new Date()
-    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90)
-
     const [statsRes, ordersRes, lowStockRes] = await Promise.all([
-      supabase
-        .from('orders')
-        .select('total, status, created_at')
-        .eq('shop_id', shop.id)
-        .gte('created_at', ninetyDaysAgo.toISOString()),
+      supabase.rpc('get_dashboard_stats', { p_shop_id: shop.id }),
       supabase
         .from('orders')
         .select('*, items:order_items(*)')
@@ -62,17 +51,7 @@ export default function DashboardHome() {
     ])
 
     if (statsRes.data) {
-      const all = statsRes.data
-      const todayOrders = all.filter((o) => new Date(o.created_at) >= today)
-      // Exclude cancelled orders from revenue — they were never fulfilled
-      const revenueOrders = all.filter((o) => o.status !== 'cancelled' && o.payment_status === 'paid')
-      const todayRevenueOrders = todayOrders.filter((o) => o.status !== 'cancelled' && o.payment_status === 'paid')
-      setStats({
-        total_orders: all.length,
-        pending_orders: all.filter((o) => ['pending', 'confirmed', 'preparing'].includes(o.status)).length,
-        today_revenue: todayRevenueOrders.reduce((s, o) => s + o.total, 0),
-        total_revenue: revenueOrders.reduce((s, o) => s + o.total, 0),
-      })
+      setStats(statsRes.data as DashboardStats)
     }
 
     setRecentOrders((ordersRes.data as Order[]) || [])
@@ -86,32 +65,32 @@ export default function DashboardHome() {
       label: "Today's Revenue",
       value: formatCurrency(stats?.today_revenue || 0),
       icon: TrendingUp,
-      color: 'text-green-600',
-      bg: 'bg-green-50',
+      color: 'text-green-600 dark:text-green-400',
+      bg: 'bg-green-50 dark:bg-green-900/30',
       sub: 'Paid orders today',
     },
     {
       label: 'Total Orders',
       value: stats?.total_orders || 0,
       icon: ShoppingBag,
-      color: 'text-blue-600',
-      bg: 'bg-blue-50',
+      color: 'text-blue-600 dark:text-blue-400',
+      bg: 'bg-blue-50 dark:bg-blue-900/30',
       sub: 'All time',
     },
     {
       label: 'Active Orders',
       value: stats?.pending_orders || 0,
       icon: Clock,
-      color: 'text-orange-600',
-      bg: 'bg-orange-50',
+      color: 'text-orange-600 dark:text-orange-400',
+      bg: 'bg-orange-50 dark:bg-orange-900/30',
       sub: 'Pending / preparing',
     },
     {
       label: 'Total Revenue',
       value: formatCurrency(stats?.total_revenue || 0),
       icon: CheckCircle,
-      color: 'text-purple-600',
-      bg: 'bg-purple-50',
+      color: 'text-purple-600 dark:text-purple-400',
+      bg: 'bg-purple-50 dark:bg-purple-900/30',
       sub: 'Last 90 days',
     },
   ]
@@ -119,7 +98,7 @@ export default function DashboardHome() {
   return (
     <div className="space-y-6 max-w-6xl">
       {/* Welcome banner */}
-      <div className="bg-gradient-to-r from-orange-500 to-amber-500 rounded-2xl p-6 text-white shadow-lg shadow-orange-100">
+      <div className="bg-gradient-to-r from-orange-500 to-amber-500 rounded-2xl p-6 text-white shadow-lg shadow-orange-100 dark:shadow-orange-900/30">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-bold">Good {getGreeting()}, {shop?.name}! 👋</h2>
@@ -141,9 +120,9 @@ export default function DashboardHome() {
                   <div className={`inline-flex p-2.5 rounded-xl ${bg} mb-3`}>
                     <Icon size={20} className={color} />
                   </div>
-                  <p className="text-2xl font-bold text-gray-900">{value}</p>
-                  <p className="text-sm font-medium text-gray-700 mt-0.5">{label}</p>
-                  <p className="text-xs text-gray-400 mt-0.5">{sub}</p>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">{value}</p>
+                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mt-0.5">{label}</p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{sub}</p>
                 </CardContent>
               </Card>
             ))}
@@ -158,8 +137,8 @@ export default function DashboardHome() {
                 <UtensilsCrossed size={22} className="text-orange-500" />
               </div>
               <div className="flex-1">
-                <p className="font-semibold text-gray-900">Manage Menu</p>
-                <p className="text-sm text-gray-500">Add or update items</p>
+                <p className="font-semibold text-gray-900 dark:text-white">Manage Menu</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Add or update items</p>
               </div>
               <ArrowRight size={16} className="text-gray-300 group-hover:text-orange-400 transition-colors" />
             </CardContent>
@@ -172,8 +151,8 @@ export default function DashboardHome() {
                 <Flame size={22} className="text-red-500" />
               </div>
               <div className="flex-1">
-                <p className="font-semibold text-gray-900">Kitchen View</p>
-                <p className="text-sm text-gray-500">Live order feed</p>
+                <p className="font-semibold text-gray-900 dark:text-white">Kitchen View</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Live order feed</p>
               </div>
               <ArrowRight size={16} className="text-gray-300 group-hover:text-red-400 transition-colors" />
             </CardContent>
@@ -186,8 +165,8 @@ export default function DashboardHome() {
                 <ShoppingBag size={22} className="text-purple-500" />
               </div>
               <div className="flex-1">
-                <p className="font-semibold text-gray-900">Get QR Code</p>
-                <p className="text-sm text-gray-500">Print for your shop</p>
+                <p className="font-semibold text-gray-900 dark:text-white">Get QR Code</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Print for your shop</p>
               </div>
               <ArrowRight size={16} className="text-gray-300 group-hover:text-purple-400 transition-colors" />
             </CardContent>
@@ -229,7 +208,7 @@ export default function DashboardHome() {
       {/* Recent orders */}
       <div>
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-900">Recent Orders</h3>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Recent Orders</h3>
           <Link to="/dashboard/orders" className="text-sm text-orange-600 hover:text-orange-700 font-medium flex items-center gap-1">
             View all <ArrowRight size={14} />
           </Link>
@@ -242,9 +221,9 @@ export default function DashboardHome() {
         ) : recentOrders.length === 0 ? (
           <Card>
             <CardContent className="py-12 text-center">
-              <ShoppingBag size={40} className="text-gray-200 mx-auto mb-3" />
-              <p className="text-gray-500 font-medium">No orders yet</p>
-              <p className="text-sm text-gray-400 mt-1">Share your QR code to start receiving orders</p>
+              <ShoppingBag size={40} className="text-gray-200 dark:text-slate-700 mx-auto mb-3" />
+              <p className="text-gray-500 dark:text-gray-400 font-medium">No orders yet</p>
+              <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">Share your QR code to start receiving orders</p>
             </CardContent>
           </Card>
         ) : (
@@ -257,7 +236,7 @@ export default function DashboardHome() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="font-semibold text-gray-900 text-sm">{order.order_number}</span>
+                      <span className="font-semibold text-gray-900 dark:text-white text-sm">{order.order_number}</span>
                       {order.order_source === 'walkin' && (
                         <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-indigo-100 text-indigo-700">Walk-in</span>
                       )}
@@ -265,10 +244,10 @@ export default function DashboardHome() {
                         {getOrderStatusLabel(order.status)}
                       </span>
                     </div>
-                    <p className="text-xs text-gray-500 mt-0.5">{order.customer_name} · {formatTime(order.created_at)}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{order.customer_name} · {formatTime(order.created_at)}</p>
                   </div>
                   <div className="text-right">
-                    <p className="font-semibold text-gray-900 text-sm">{formatCurrency(order.total)}</p>
+                    <p className="font-semibold text-gray-900 dark:text-white text-sm">{formatCurrency(order.total)}</p>
                     <p className="text-xs text-gray-400 capitalize">{order.payment_method}</p>
                   </div>
                 </CardContent>

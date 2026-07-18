@@ -15,6 +15,9 @@ export interface Shop {
   auto_schedule_enabled: boolean
   auto_open_time: string | null
   auto_close_time: string | null
+  brand_primary: string | null
+  brand_secondary: string | null
+  brand_accent: string | null
   created_at: string
   updated_at: string
 }

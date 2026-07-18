@@ -181,16 +181,16 @@ export default function WalkInPage() {
   return (
     <div className="h-[calc(100vh-64px)] flex flex-col md:flex-row overflow-hidden">
       {/* ── Left: Menu ── */}
-      <div className="flex-1 flex flex-col min-h-0 border-r border-gray-100">
-        <div className="px-4 py-3 border-b border-gray-100 bg-white">
-          <h2 className="font-bold text-gray-900">Walk-in Order</h2>
+      <div className="flex-1 flex flex-col min-h-0 border-r border-gray-100 dark:border-slate-800">
+        <div className="px-4 py-3 border-b border-gray-100 dark:border-slate-800 bg-white dark:bg-slate-900">
+          <h2 className="font-bold text-gray-900 dark:text-white">Walk-in Order</h2>
         </div>
 
         {/* Category tabs */}
-        <div className="flex gap-2 px-4 py-2 overflow-x-auto bg-white border-b border-gray-100 no-scrollbar">
+        <div className="flex gap-2 px-4 py-2 overflow-x-auto bg-white dark:bg-slate-900 border-b border-gray-100 dark:border-slate-800 no-scrollbar">
           <button
             onClick={() => setActiveCategory('all')}
-            className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${activeCategory === 'all' ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+            className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${activeCategory === 'all' ? 'bg-orange-500 text-white' : 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-700'}`}
           >
             All
           </button>
@@ -198,7 +198,7 @@ export default function WalkInPage() {
             <button
               key={cat.id}
               onClick={() => setActiveCategory(cat.id)}
-              className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${activeCategory === cat.id ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+              className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${activeCategory === cat.id ? 'bg-orange-500 text-white' : 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-700'}`}
             >
               {cat.name}
             </button>
@@ -208,14 +208,14 @@ export default function WalkInPage() {
         {/* Items list */}
         <div className="flex-1 overflow-y-auto p-3 space-y-2">
           {filteredItems.length === 0 && (
-            <p className="text-center text-gray-400 text-sm py-10">No items in this category</p>
+            <p className="text-center text-gray-400 dark:text-gray-500 text-sm py-10">No items in this category</p>
           )}
           {filteredItems.map((item) => {
             const qty = getQty(item.id)
             return (
-              <div key={item.id} className="flex items-center gap-3 bg-white rounded-xl border border-gray-100 p-3">
+              <div key={item.id} className="flex items-center gap-3 bg-white dark:bg-slate-800 rounded-xl border border-gray-100 dark:border-slate-700 p-3">
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium text-gray-900 text-sm truncate">{item.name}</p>
+                  <p className="font-medium text-gray-900 dark:text-white text-sm truncate">{item.name}</p>
                   <p className="text-orange-600 text-sm font-semibold">{formatCurrency(item.price)}</p>
                 </div>
                 {qty === 0 ? (
@@ -227,10 +227,10 @@ export default function WalkInPage() {
                   </button>
                 ) : (
                   <div className="flex items-center gap-1.5">
-                    <button onClick={() => updateQty(item.id, -1)} className="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors">
+                    <button onClick={() => updateQty(item.id, -1)} className="w-7 h-7 rounded-lg bg-gray-100 dark:bg-slate-700 flex items-center justify-center hover:bg-gray-200 dark:hover:bg-slate-600 transition-colors text-gray-700 dark:text-gray-300">
                       <Minus size={12} />
                     </button>
-                    <span className="w-5 text-center text-sm font-semibold">{qty}</span>
+                    <span className="w-5 text-center text-sm font-semibold dark:text-white">{qty}</span>
                     <button onClick={() => updateQty(item.id, 1)} className="w-7 h-7 rounded-lg bg-orange-500 text-white flex items-center justify-center hover:bg-orange-600 transition-colors">
                       <Plus size={12} />
                     </button>
@@ -243,70 +243,70 @@ export default function WalkInPage() {
       </div>
 
       {/* ── Right: Order panel ── */}
-      <div className="w-full md:w-80 lg:w-96 flex flex-col bg-gray-50 border-t md:border-t-0 border-gray-100">
+      <div className="w-full md:w-80 lg:w-96 flex flex-col bg-gray-50 dark:bg-slate-900 border-t md:border-t-0 border-gray-100 dark:border-slate-800">
         {/* Success banner */}
         {lastOrder && (
-          <div className="m-3 bg-green-50 border border-green-200 rounded-2xl p-4 flex items-start gap-3">
-            <CheckCircle size={20} className="text-green-600 flex-shrink-0 mt-0.5" />
+          <div className="m-3 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-2xl p-4 flex items-start gap-3">
+            <CheckCircle size={20} className="text-green-600 dark:text-green-500 flex-shrink-0 mt-0.5" />
             <div>
-              <p className="font-semibold text-green-800 text-sm">Order placed!</p>
-              <p className="text-green-700 text-xs mt-0.5">Order #{lastOrder.orderNumber}</p>
-              <button onClick={() => setLastOrder(null)} className="mt-2 text-xs text-green-600 hover:underline">Dismiss</button>
+              <p className="font-semibold text-green-800 dark:text-green-400 text-sm">Order placed!</p>
+              <p className="text-green-700 dark:text-green-500 text-xs mt-0.5">Order #{lastOrder.orderNumber}</p>
+              <button onClick={() => setLastOrder(null)} className="mt-2 text-xs text-green-600 dark:text-green-400 hover:underline">Dismiss</button>
             </div>
           </div>
         )}
 
-        <div className="px-4 py-3 border-b border-gray-100 bg-white">
-          <h2 className="font-bold text-gray-900">Current Order</h2>
+        <div className="px-4 py-3 border-b border-gray-100 dark:border-slate-800 bg-white dark:bg-slate-900">
+          <h2 className="font-bold text-gray-900 dark:text-white">Current Order</h2>
           {cart.length === 0 && (
-            <p className="text-xs text-gray-400 mt-0.5">No items added yet</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">No items added yet</p>
           )}
         </div>
 
         {/* Cart items */}
         <div className="flex-1 overflow-y-auto p-3 space-y-2">
           {cart.map((entry) => (
-            <div key={entry.item.id} className="flex items-center gap-2 bg-white rounded-xl border border-gray-100 p-3">
+            <div key={entry.item.id} className="flex items-center gap-2 bg-white dark:bg-slate-800 rounded-xl border border-gray-100 dark:border-slate-700 p-3">
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-900 truncate">{entry.item.name}</p>
-                <p className="text-xs text-gray-400">{formatCurrency(entry.item.price)} × {entry.quantity}</p>
+                <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{entry.item.name}</p>
+                <p className="text-xs text-gray-400 dark:text-gray-500">{formatCurrency(entry.item.price)} × {entry.quantity}</p>
               </div>
               <div className="flex items-center gap-1.5">
-                <button onClick={() => updateQty(entry.item.id, -1)} className="w-6 h-6 rounded-md bg-gray-100 flex items-center justify-center hover:bg-gray-200">
+                <button onClick={() => updateQty(entry.item.id, -1)} className="w-6 h-6 rounded-md bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-gray-300 flex items-center justify-center hover:bg-gray-200 dark:hover:bg-slate-600">
                   <Minus size={10} />
                 </button>
-                <span className="w-5 text-center text-xs font-semibold">{entry.quantity}</span>
+                <span className="w-5 text-center text-xs font-semibold dark:text-white">{entry.quantity}</span>
                 <button onClick={() => updateQty(entry.item.id, 1)} className="w-6 h-6 rounded-md bg-orange-500 text-white flex items-center justify-center hover:bg-orange-600">
                   <Plus size={10} />
                 </button>
-                <button onClick={() => removeFromCart(entry.item.id)} className="w-6 h-6 rounded-md text-gray-400 hover:text-red-500 flex items-center justify-center transition-colors">
+                <button onClick={() => removeFromCart(entry.item.id)} className="w-6 h-6 rounded-md text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 flex items-center justify-center transition-colors">
                   <Trash2 size={10} />
                 </button>
               </div>
-              <span className="text-xs font-semibold text-gray-900 w-14 text-right">{formatCurrency(entry.item.price * entry.quantity)}</span>
+              <span className="text-xs font-semibold text-gray-900 dark:text-white w-14 text-right">{formatCurrency(entry.item.price * entry.quantity)}</span>
             </div>
           ))}
           {cart.length === 0 && (
             <div className="flex flex-col items-center justify-center py-10 text-center">
-              <ShoppingBag size={32} className="text-gray-200 mb-2" />
-              <p className="text-xs text-gray-400">Add items from the menu</p>
+              <ShoppingBag size={32} className="text-gray-200 dark:text-slate-700 mb-2" />
+              <p className="text-xs text-gray-400 dark:text-gray-500">Add items from the menu</p>
             </div>
           )}
         </div>
 
         {/* Order details + totals */}
-        <div className="border-t border-gray-100 bg-white p-4 space-y-3">
+        <div className="border-t border-gray-100 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 space-y-3">
           {/* Totals */}
           <div className="space-y-1">
-            <div className="flex justify-between text-xs text-gray-500">
+            <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
               <span>Subtotal</span><span>{formatCurrency(subtotal)}</span>
             </div>
             {taxAmount > 0 && (
-              <div className="flex justify-between text-xs text-gray-500">
+              <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
                 <span>Tax ({shop?.tax_percent}%)</span><span>{formatCurrency(taxAmount)}</span>
               </div>
             )}
-            <div className="flex justify-between text-sm font-bold text-gray-900 pt-1 border-t border-gray-100">
+            <div className="flex justify-between text-sm font-bold text-gray-900 dark:text-white pt-1 border-t border-gray-100 dark:border-slate-800">
               <span>Total</span><span className="text-orange-600">{formatCurrency(total)}</span>
             </div>
           </div>
@@ -317,7 +317,7 @@ export default function WalkInPage() {
             placeholder="Customer name (optional)"
             value={customerName}
             onChange={(e) => setCustomerName(e.target.value)}
-            className="w-full h-9 px-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-orange-400 transition-colors"
+            className="w-full h-9 px-3 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 outline-none focus:border-orange-400 transition-colors"
           />
 
           {/* Payment method */}
@@ -326,7 +326,7 @@ export default function WalkInPage() {
               <button
                 key={m}
                 onClick={() => setPaymentMethod(m)}
-                className={`flex-1 py-2 rounded-xl text-xs font-semibold capitalize transition-colors border ${paymentMethod === m ? 'bg-orange-500 text-white border-orange-500' : 'bg-gray-50 text-gray-700 border-gray-200 hover:border-orange-300'}`}
+                className={`flex-1 py-2 rounded-xl text-xs font-semibold capitalize transition-colors border ${paymentMethod === m ? 'bg-orange-500 text-white border-orange-500' : 'bg-gray-50 dark:bg-slate-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-slate-700 hover:border-orange-300 dark:hover:border-orange-500/50'}`}
               >
                 {m === 'upi' ? 'UPI' : 'Cash'}
               </button>

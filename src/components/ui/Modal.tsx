@@ -51,18 +51,18 @@ export function Modal({ open, onClose, title, children, size = 'md', className }
       />
       <div
         className={cn(
-          'relative w-full bg-white rounded-2xl shadow-2xl',
+          'relative w-full bg-white dark:bg-slate-900 rounded-2xl shadow-2xl',
           sizes[size],
           className
         )}
         style={{ animation: 'slideUp 0.2s ease-out' }}
       >
         {title && (
-          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-            <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
+          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-slate-800">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{title}</h2>
             <button
               onClick={onClose}
-              className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+              className="p-1.5 rounded-lg text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors"
             >
               <X size={18} />
             </button>

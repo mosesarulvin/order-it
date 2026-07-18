@@ -16,7 +16,7 @@ export function Toggle({ checked, onChange, label, disabled, className }: Toggle
         aria-checked={checked}
         className={cn(
           'relative w-10 h-6 rounded-full transition-colors duration-200',
-          checked ? 'bg-orange-500' : 'bg-gray-200'
+          checked ? 'bg-orange-500' : 'bg-gray-200 dark:bg-slate-700'
         )}
         onClick={() => onChange(!checked)}
       >
@@ -27,7 +27,7 @@ export function Toggle({ checked, onChange, label, disabled, className }: Toggle
           )}
         />
       </div>
-      {label && <span className="text-sm text-gray-700">{label}</span>}
+      {label && <span className="text-sm text-gray-700 dark:text-gray-300">{label}</span>}
     </label>
   )
 }

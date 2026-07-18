@@ -291,22 +291,22 @@ export default function CheckoutPage() {
   // Still loading shop info — show spinner instead of the form
   if (shopOpen === null) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="w-10 h-10 border-4 border-orange-200 border-t-orange-500 rounded-full animate-spin" />
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-slate-950">
+        <div className="w-10 h-10 border-4 border-brand-primary-light border-t-[var(--brand-primary)] rounded-full animate-spin" />
       </div>
     )
   }
 
   if (shopOpen === false && !items.every((ci) => ci.menu_item.is_instant)) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-8 text-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center p-8 text-center bg-gray-50 dark:bg-slate-950">
         <div>
-          <div className="w-20 h-20 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Clock size={40} className="text-orange-500" />
+          <div className="w-20 h-20 bg-brand-primary-lighter dark:bg-brand-primary-shadow rounded-full flex items-center justify-center mx-auto mb-4">
+            <Clock size={40} className="text-brand-primary" />
           </div>
-          <h2 className="text-xl font-bold text-gray-900">Shop is currently closed</h2>
-          <p className="text-sm text-gray-500 mt-1">Orders are not being accepted right now.</p>
-          <button onClick={() => navigate(`/order/${slug}`)} className="mt-4 text-orange-600 font-medium">
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white">Shop is currently closed</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Orders are not being accepted right now.</p>
+          <button onClick={() => navigate(`/order/${slug}`)} className="mt-4 text-brand-accent dark:text-brand-primary font-medium">
             ← Back to menu
           </button>
         </div>
@@ -316,13 +316,13 @@ export default function CheckoutPage() {
 
   if (items.length === 0) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-8 text-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center p-8 text-center bg-gray-50 dark:bg-slate-950">
         <div>
-          <ShoppingBag size={64} className="text-gray-200 mx-auto mb-4" />
-          <h2 className="text-xl font-bold text-gray-900">Your cart is empty</h2>
+          <ShoppingBag size={64} className="text-gray-200 dark:text-slate-700 mx-auto mb-4" />
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white">Your cart is empty</h2>
           <button
             onClick={() => navigate(`/order/${slug}`)}
-            className="mt-4 text-orange-600 font-medium"
+            className="mt-4 text-brand-accent dark:text-brand-primary font-medium"
           >
             ← Back to menu
           </button>
@@ -332,98 +332,98 @@ export default function CheckoutPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-slate-950">
       {/* Header */}
-      <div className="bg-white border-b border-gray-100 sticky top-0 z-10">
+      <div className="bg-white dark:bg-slate-900 border-b border-gray-100 dark:border-slate-800 sticky top-0 z-10">
         <div className="max-w-lg mx-auto px-4 h-14 flex items-center gap-3">
           <button
             onClick={() => navigate(`/order/${slug}`)}
-            className="p-2 -ml-2 rounded-xl text-gray-500 hover:bg-gray-100 transition-colors"
+            className="p-2 -ml-2 rounded-xl text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors"
           >
             <ArrowLeft size={20} />
           </button>
-          <h1 className="font-bold text-gray-900">Checkout</h1>
+          <h1 className="font-bold text-gray-900 dark:text-white">Checkout</h1>
         </div>
       </div>
 
       <div className="max-w-lg mx-auto px-4 py-5 space-y-4 pb-32">
         {/* Cart items */}
-        <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-50">
-            <h2 className="font-semibold text-gray-900 text-sm">Your order</h2>
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 overflow-hidden">
+          <div className="px-4 py-3 border-b border-gray-50 dark:border-slate-800">
+            <h2 className="font-semibold text-gray-900 dark:text-white text-sm">Your order</h2>
           </div>
-          <div className="divide-y divide-gray-50">
+          <div className="divide-y divide-gray-50 dark:divide-slate-800">
             {items.map((ci, idx) => (
               <div key={`${ci.menu_item.id}-${idx}`} className="px-4 py-3 flex items-center gap-3">
                 {ci.menu_item.image_url ? (
                   <img src={ci.menu_item.image_url} alt={ci.menu_item.name} className="w-12 h-12 rounded-xl object-cover flex-shrink-0" />
                 ) : (
-                  <div className="w-12 h-12 rounded-xl bg-orange-50 flex items-center justify-center flex-shrink-0 text-xl">🍽️</div>
+                  <div className="w-12 h-12 rounded-xl bg-brand-primary-lighter flex items-center justify-center flex-shrink-0 text-xl">🍽️</div>
                 )}
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">{ci.menu_item.name}</p>
+                  <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{ci.menu_item.name}</p>
                   {ci.customizations.length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-1">
                       {ci.customizations.map((c, i) => (
-                        <span key={i} className="text-xs bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded-full">{c.choice}</span>
+                        <span key={i} className="text-xs bg-brand-accent-light dark:bg-brand-primary-shadow text-brand-primary-dark dark:text-brand-primary px-1.5 py-0.5 rounded-full">{c.choice}</span>
                       ))}
                     </div>
                   )}
-                  <p className="text-sm font-semibold text-orange-600 mt-0.5">{formatCurrency(ci.menu_item.price)}</p>
+                  <p className="text-sm font-semibold text-brand-accent dark:text-brand-primary mt-0.5">{formatCurrency(ci.menu_item.price)}</p>
                 </div>
                   <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-1.5 bg-gray-50 rounded-xl p-1">
+                  <div className="flex items-center gap-1.5 bg-gray-50 dark:bg-slate-800 rounded-xl p-1">
                     <button
                       onClick={() => updateQuantityAt(idx, ci.quantity - 1)}
-                      className="w-6 h-6 flex items-center justify-center rounded-lg bg-white text-gray-500 shadow-sm text-xs"
+                      className="w-6 h-6 flex items-center justify-center rounded-lg bg-white dark:bg-slate-700 text-gray-500 dark:text-gray-300 shadow-sm text-xs"
                     >
                       <Minus size={12} />
                     </button>
-                    <span className="w-4 text-center text-sm font-bold">{ci.quantity}</span>
+                    <span className="w-4 text-center text-sm font-bold dark:text-white">{ci.quantity}</span>
                     <button
                       onClick={() => updateQuantityAt(idx, ci.quantity + 1)}
-                      className="w-6 h-6 flex items-center justify-center rounded-lg bg-orange-500 text-white shadow-sm text-xs"
+                      className="w-6 h-6 flex items-center justify-center rounded-lg bg-brand-primary text-white shadow-sm text-xs"
                     >
                       <Plus size={12} />
                     </button>
                   </div>
-                  <button onClick={() => removeItemAt(idx)} className="p-1.5 text-gray-300 hover:text-red-400 transition-colors">
+                  <button onClick={() => removeItemAt(idx)} className="p-1.5 text-gray-300 dark:text-gray-500 hover:text-red-400 dark:hover:text-red-500 transition-colors">
                     <Trash2 size={14} />
                   </button>
                 </div>
               </div>
             ))}
           </div>
-          <div className="px-4 py-3 bg-gray-50 space-y-1.5 border-t border-gray-100">
-            <div className="flex justify-between text-sm text-gray-500">
+          <div className="px-4 py-3 bg-gray-50 dark:bg-slate-800 space-y-1.5 border-t border-gray-100 dark:border-slate-700">
+            <div className="flex justify-between text-sm text-gray-500 dark:text-gray-400">
               <span>Subtotal</span><span>{formatCurrency(subtotal)}</span>
             </div>
             {taxAmount > 0 && (
-              <div className="flex justify-between text-sm text-gray-500">
+              <div className="flex justify-between text-sm text-gray-500 dark:text-gray-400">
                 <span>Tax ({taxPercent}%)</span><span>{formatCurrency(taxAmount)}</span>
               </div>
             )}
             {discountAmount > 0 && (
-              <div className="flex justify-between text-sm text-green-600 font-medium">
+              <div className="flex justify-between text-sm text-green-600 dark:text-green-400 font-medium">
                 <span className="flex items-center gap-1"><Tag size={12} /> {appliedCoupon?.code}</span>
                 <span>−{formatCurrency(discountAmount)}</span>
               </div>
             )}
-            <div className="flex justify-between font-bold text-gray-900 pt-1 border-t border-gray-200">
-              <span>Total</span><span className="text-orange-600">{formatCurrency(total)}</span>
+            <div className="flex justify-between font-bold text-gray-900 dark:text-white pt-1 border-t border-gray-200 dark:border-slate-600">
+              <span>Total</span><span className="text-brand-accent dark:text-brand-primary">{formatCurrency(total)}</span>
             </div>
           </div>
 
           {/* Coupon input — only shown when coupons are enabled for this shop */}
           {couponsEnabled && (
-          <div className="px-4 py-3 border-t border-gray-100">
+          <div className="px-4 py-3 border-t border-gray-100 dark:border-slate-700 bg-white dark:bg-slate-900">
             {appliedCoupon ? (
-              <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-xl px-3 py-2">
-                <div className="flex items-center gap-2 text-green-700 text-sm font-medium">
+              <div className="flex items-center justify-between bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl px-3 py-2">
+                <div className="flex items-center gap-2 text-green-700 dark:text-green-400 text-sm font-medium">
                   <Tag size={14} />
                   <span>{appliedCoupon.code} · saving {formatCurrency(discountAmount)}</span>
                 </div>
-                <button onClick={removeCoupon} className="text-green-600 hover:text-red-500 transition-colors">
+                <button onClick={removeCoupon} className="text-green-600 dark:text-green-500 hover:text-red-500 dark:hover:text-red-400 transition-colors">
                   <X size={16} />
                 </button>
               </div>
@@ -435,12 +435,12 @@ export default function CheckoutPage() {
                   value={couponInput}
                   onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
                   onKeyDown={(e) => e.key === 'Enter' && applyCoupon()}
-                  className="flex-1 h-9 px-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-orange-400 transition-colors uppercase placeholder:normal-case"
+                  className="flex-1 h-9 px-3 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 text-sm outline-none focus-brand transition-colors uppercase placeholder:normal-case"
                 />
                 <button
                   onClick={applyCoupon}
                   disabled={couponLoading || !couponInput.trim()}
-                  className="px-4 h-9 rounded-xl bg-orange-50 text-orange-600 text-sm font-semibold hover:bg-orange-100 disabled:opacity-40 transition-colors"
+                  className="px-4 h-9 rounded-xl bg-brand-primary-lighter text-brand-accent text-sm font-semibold hover:bg-brand-primary-light disabled:opacity-40 transition-colors"
                 >
                   {couponLoading ? '...' : 'Apply'}
                 </button>
@@ -449,8 +449,8 @@ export default function CheckoutPage() {
           </div>
           )}
         </div>
-        <div className="bg-white rounded-2xl border border-gray-100 p-4 space-y-4">
-          <h2 className="font-semibold text-gray-900 text-sm">Your details</h2>
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-4 space-y-4">
+          <h2 className="font-semibold text-gray-900 dark:text-white text-sm">Your details</h2>
           <Input
             label="Your name"
             placeholder="e.g. Arjun Kumar"
@@ -473,21 +473,21 @@ export default function CheckoutPage() {
             type="button"
             onClick={() => setIsAnonymous((v) => !v)}
             className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl border transition-all ${
-              isAnonymous ? 'border-blue-200 bg-blue-50' : 'border-gray-200 bg-gray-50 hover:bg-gray-100'
+              isAnonymous ? 'border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20' : 'border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 hover:bg-gray-100 dark:hover:bg-slate-700'
             }`}
           >
             <div className="flex items-center gap-2">
-              <EyeOff size={15} className={isAnonymous ? 'text-blue-600' : 'text-gray-400'} />
-              <span className={`text-sm font-medium ${isAnonymous ? 'text-blue-700' : 'text-gray-600'}`}>
+              <EyeOff size={15} className={isAnonymous ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-gray-500'} />
+              <span className={`text-sm font-medium ${isAnonymous ? 'text-blue-700 dark:text-blue-300' : 'text-gray-600 dark:text-gray-300'}`}>
                 Prefer not to share phone number
               </span>
             </div>
-            <div className={`w-9 h-5 rounded-full transition-colors relative ${isAnonymous ? 'bg-blue-500' : 'bg-gray-300'}`}>
+            <div className={`w-9 h-5 rounded-full transition-colors relative ${isAnonymous ? 'bg-blue-500 dark:bg-blue-600' : 'bg-gray-300 dark:bg-slate-600'}`}>
               <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${isAnonymous ? 'translate-x-4' : 'translate-x-0.5'}`} />
             </div>
           </button>
           {isAnonymous && (
-            <p className="text-xs text-blue-600 bg-blue-50 rounded-xl px-3 py-2">
+            <p className="text-xs text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded-xl px-3 py-2">
               🔒 Your phone number won't be shared with the shop.
             </p>
           )}
@@ -499,45 +499,45 @@ export default function CheckoutPage() {
         </div>
 
         {/* Payment method */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-4 space-y-3">
-          <h2 className="font-semibold text-gray-900 text-sm">How would you like to pay?</h2>
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-4 space-y-3">
+          <h2 className="font-semibold text-gray-900 dark:text-white text-sm">How would you like to pay?</h2>
           <div className="grid grid-cols-2 gap-3">
             <button
               onClick={() => setPaymentMethod('upi')}
               className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${
                 paymentMethod === 'upi'
-                  ? 'border-orange-400 bg-orange-50'
-                  : 'border-gray-200 hover:border-gray-300'
+                  ? 'border-brand-primary bg-brand-primary-lighter dark:bg-brand-primary-shadow'
+                  : 'border-gray-200 dark:border-slate-700 hover:border-gray-300 dark:hover:border-slate-600'
               }`}
             >
-              <Wallet size={24} className={paymentMethod === 'upi' ? 'text-orange-500' : 'text-gray-400'} />
+              <Wallet size={24} className={paymentMethod === 'upi' ? 'text-brand-primary' : 'text-gray-400 dark:text-gray-500'} />
               <div>
-                <p className={`text-sm font-semibold ${paymentMethod === 'upi' ? 'text-orange-700' : 'text-gray-700'}`}>Pay Online</p>
-                <p className="text-xs text-gray-400">UPI / Card</p>
+                <p className={`text-sm font-semibold ${paymentMethod === 'upi' ? 'text-brand-primary-dark dark:text-brand-primary' : 'text-gray-700 dark:text-gray-300'}`}>Pay Online</p>
+                <p className="text-xs text-gray-400 dark:text-gray-500">UPI / Card</p>
               </div>
             </button>
             <button
               onClick={() => setPaymentMethod('cash')}
               className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${
                 paymentMethod === 'cash'
-                  ? 'border-orange-400 bg-orange-50'
-                  : 'border-gray-200 hover:border-gray-300'
+                  ? 'border-brand-primary bg-brand-primary-lighter dark:bg-brand-primary-shadow'
+                  : 'border-gray-200 dark:border-slate-700 hover:border-gray-300 dark:hover:border-slate-600'
               }`}
             >
-              <Banknote size={24} className={paymentMethod === 'cash' ? 'text-orange-500' : 'text-gray-400'} />
+              <Banknote size={24} className={paymentMethod === 'cash' ? 'text-brand-primary' : 'text-gray-400 dark:text-gray-500'} />
               <div>
-                <p className={`text-sm font-semibold ${paymentMethod === 'cash' ? 'text-orange-700' : 'text-gray-700'}`}>Pay at Counter</p>
-                <p className="text-xs text-gray-400">Cash / UPI QR</p>
+                <p className={`text-sm font-semibold ${paymentMethod === 'cash' ? 'text-brand-primary-dark dark:text-brand-primary' : 'text-gray-700 dark:text-gray-300'}`}>Pay at Counter</p>
+                <p className="text-xs text-gray-400 dark:text-gray-500">Cash / UPI QR</p>
               </div>
             </button>
           </div>
           {paymentMethod === 'upi' && (
-            <div className="bg-blue-50 rounded-xl p-3 text-xs text-blue-700 border border-blue-100">
+            <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-3 text-xs text-blue-700 dark:text-blue-400 border border-blue-100 dark:border-blue-800">
               💳 You'll be redirected to pay {formatCurrency(total)} via UPI / Card after placing your order.
             </div>
           )}
           {paymentMethod === 'cash' && (
-            <div className="bg-green-50 rounded-xl p-3 text-xs text-green-700 border border-green-100">
+            <div className="bg-green-50 dark:bg-green-900/20 rounded-xl p-3 text-xs text-green-700 dark:text-green-400 border border-green-100 dark:border-green-800">
               💵 Place your order now and pay at the counter when you collect it.
             </div>
           )}
@@ -545,7 +545,7 @@ export default function CheckoutPage() {
       </div>
 
       {/* Place order button */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 p-4">
+      <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-slate-900 border-t border-gray-100 dark:border-slate-800 p-4">
         <div className="max-w-lg mx-auto">
           <Button
             className="w-full"

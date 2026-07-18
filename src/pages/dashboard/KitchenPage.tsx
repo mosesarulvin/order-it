@@ -172,13 +172,13 @@ export default function KitchenPage() {
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Kitchen</h2>
-          <p className="text-sm text-gray-500 mt-0.5">Live order feed · Auto-updates</p>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Kitchen</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Live order feed · Auto-updates</p>
         </div>
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-green-50 rounded-full">
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-green-50 dark:bg-green-900/30 rounded-full">
             <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-            <span className="text-xs font-medium text-green-700">Live</span>
+            <span className="text-xs font-medium text-green-700 dark:text-green-400">Live</span>
           </div>
           <Button variant="outline" size="sm" onClick={() => fetchOrders()}>
             <RefreshCw size={14} className="mr-1.5" /> Refresh
@@ -196,32 +196,32 @@ export default function KitchenPage() {
             placeholder="Search order #..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="h-9 pl-8 pr-3 rounded-xl border border-gray-200 bg-white text-sm text-gray-900 placeholder:text-gray-400 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100 w-40"
+            className="h-9 pl-8 pr-3 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100 dark:focus:ring-orange-900/50 w-40"
           />
         </div>
         {/* Status filter */}
-        <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
+        <div className="flex gap-1 bg-gray-100 dark:bg-slate-800 rounded-xl p-1">
           {([['all', 'All'], ['pending', 'New'], ['confirmed', 'Confirmed'], ['preparing', 'Preparing'], ['ready', 'Ready']] as [OrderStatus | 'all', string][]).map(([val, label]) => (
             <button
               key={val}
               onClick={() => setFilterStatus(val)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${filterStatus === val ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${filterStatus === val ? 'bg-white dark:bg-slate-700 shadow text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}
             >
               {label}
               {val !== 'all' && (
-                <span className="ml-1.5 text-gray-400">{orders.filter((o) => o.status === val).length}</span>
+                <span className="ml-1.5 text-gray-400 dark:text-gray-500">{orders.filter((o) => o.status === val).length}</span>
               )}
             </button>
           ))}
         </div>
 
         {/* Payment filter */}
-        <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
+        <div className="flex gap-1 bg-gray-100 dark:bg-slate-800 rounded-xl p-1">
           {([['all', 'All payments'], ['cash', '💵 Cash'], ['upi', '📱 UPI']] as ['all' | 'cash' | 'upi', string][]).map(([val, label]) => (
             <button
               key={val}
               onClick={() => setFilterPayment(val)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${filterPayment === val ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${filterPayment === val ? 'bg-white dark:bg-slate-700 shadow text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}
             >
               {label}
             </button>
@@ -234,7 +234,7 @@ export default function KitchenPage() {
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
-            className="text-xs font-medium text-gray-600 bg-transparent border-none outline-none cursor-pointer"
+            className="text-xs font-medium text-gray-600 dark:text-gray-300 bg-transparent border-none outline-none cursor-pointer dark:bg-slate-900"
           >
             <option value="oldest">Oldest first</option>
             <option value="newest">Newest first</option>
@@ -252,8 +252,8 @@ export default function KitchenPage() {
               <CardContent className="p-4 flex items-center gap-3">
                 <Icon size={20} className={color} />
                 <div>
-                  <p className="text-2xl font-bold text-gray-900">{count}</p>
-                  <p className="text-xs text-gray-500">{label}</p>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">{count}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{label}</p>
                 </div>
               </CardContent>
             </Card>
@@ -293,8 +293,8 @@ export default function KitchenPage() {
             >
               <div className="flex items-center gap-2 mb-3 px-1">
                 <Icon size={16} className={color} />
-                <h3 className="font-semibold text-gray-700 text-sm">{label}</h3>
-                <span className="ml-auto text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">{colOrders.length}</span>
+                <h3 className="font-semibold text-gray-700 dark:text-gray-200 text-sm">{label}</h3>
+                <span className="ml-auto text-xs bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-gray-400 px-2 py-0.5 rounded-full">{colOrders.length}</span>
               </div>
 
               <div className="space-y-3 min-h-[80px]">
@@ -304,8 +304,8 @@ export default function KitchenPage() {
                     <OrderCardSkeleton />
                   </>
                 ) : colOrders.length === 0 ? (
-                  <div className={`rounded-2xl py-10 text-center text-sm text-gray-400 border-2 border-dashed transition-all ${isDragOver ? 'border-current ' + color + ' bg-white/60' : 'border-gray-200 bg-gray-50'}`}>
-                    <Clock size={24} className="mx-auto mb-2 text-gray-300" />
+                  <div className={`rounded-2xl py-10 text-center text-sm text-gray-400 dark:text-gray-500 border-2 border-dashed transition-all ${isDragOver ? 'border-current ' + color + ' bg-white/60 dark:bg-slate-800/80' : 'border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800/50'}`}>
+                    <Clock size={24} className="mx-auto mb-2 text-gray-300 dark:text-slate-600" />
                     {isDragOver ? 'Drop here' : 'No orders here'}
                   </div>
                 ) : (
@@ -327,32 +327,32 @@ export default function KitchenPage() {
                           {/* Header */}
                           <div className="flex items-start justify-between">
                             <div>
-                              <p className="font-bold text-gray-900">{order.order_number}</p>
+                              <p className="font-bold text-gray-900 dark:text-white">{order.order_number}</p>
                               {order.order_source === 'walkin' && (
                                 <span className="text-xs px-1.5 py-0.5 rounded-full font-medium bg-indigo-100 text-indigo-700 inline-block mt-0.5">Walk-in</span>
                               )}
-                              <p className="text-xs text-gray-500 mt-0.5">{order.customer_name}</p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{order.customer_name}</p>
                               {order.is_anonymous
                                 ? <p className="text-xs text-blue-500 mt-0.5">🔒 Anonymous</p>
-                                : <p className="text-xs text-gray-400 mt-0.5">📞 {order.customer_phone}</p>
+                                : <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">📞 {order.customer_phone}</p>
                               }
                             </div>
                             <div className="text-right flex flex-col items-end gap-1">
-                              <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${isUrgent ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'}`}>
+                              <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${isUrgent ? 'bg-red-100 text-red-700' : 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-400'}`}>
                                 {elapsed}m ago
                               </span>
                               {/* Drag hint */}
-                              <span className="text-[10px] text-gray-300 select-none">⠿ drag</span>
+                              <span className="text-[10px] text-gray-300 dark:text-slate-600 select-none">⠿ drag</span>
                             </div>
                           </div>
 
                           {/* Items */}
-                          <div className="bg-gray-50 rounded-xl p-3 space-y-1.5">
+                          <div className="bg-gray-50 dark:bg-slate-800/50 rounded-xl p-3 space-y-1.5">
                             {order.items?.map((item) => (
                               <div key={item.id} className="text-sm">
                                 <div className="flex justify-between">
-                                  <span className="text-gray-700 font-medium">{item.name}</span>
-                                  <span className="text-gray-500 font-semibold">×{item.quantity}</span>
+                                  <span className="text-gray-700 dark:text-gray-200 font-medium">{item.name}</span>
+                                  <span className="text-gray-500 dark:text-gray-400 font-semibold">×{item.quantity}</span>
                                 </div>
                                 {item.customizations && item.customizations.length > 0 && (
                                   <div className="flex flex-wrap gap-1 mt-0.5">
@@ -364,13 +364,13 @@ export default function KitchenPage() {
                               </div>
                             ))}
                             {order.notes && (
-                              <p className="text-xs text-gray-400 pt-1 border-t border-gray-100">📝 {order.notes}</p>
+                              <p className="text-xs text-gray-400 dark:text-gray-500 pt-1 border-t border-gray-100 dark:border-slate-700">📝 {order.notes}</p>
                             )}
                           </div>
 
                           {/* Payment */}
                           <div className="flex items-center justify-between text-xs">
-                            <div className="flex items-center gap-1.5 text-gray-500">
+                            <div className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400">
                               <span>{order.payment_method === 'cash' ? '💵 Cash' : '📱 UPI'}</span>
                               {order.payment_status === 'paid' ? (
                                 <span className="px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">Paid</span>
@@ -382,7 +382,7 @@ export default function KitchenPage() {
                               {order.discount_amount > 0 && (
                                 <p className="text-green-600">-{formatCurrency(order.discount_amount)}{order.coupon_code ? ` (${order.coupon_code})` : ''}</p>
                               )}
-                              <span className="font-semibold text-gray-900">{formatCurrency(order.total)}</span>
+                              <span className="font-semibold text-gray-900 dark:text-white">{formatCurrency(order.total)}</span>
                             </div>
                           </div>
 
@@ -392,7 +392,7 @@ export default function KitchenPage() {
                               <button
                                 onClick={() => updateStatus(order.id, prevStatus)}
                                 title={`Move back to ${STATUS_LABELS[prevStatus]}`}
-                                className="flex items-center gap-1 px-2.5 py-2 rounded-xl text-xs font-semibold bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
+                                className="flex items-center gap-1 px-2.5 py-2 rounded-xl text-xs font-semibold bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors"
                               >
                                 <ChevronLeft size={12} />
                                 {STATUS_LABELS[prevStatus]}
@@ -423,7 +423,7 @@ export default function KitchenPage() {
                             )}
                             <button
                               onClick={() => setCancelTarget(order)}
-                              className="px-2.5 py-2 rounded-xl text-xs font-semibold bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
+                              className="px-2.5 py-2 rounded-xl text-xs font-semibold bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors"
                             >
                               ✕
                             </button>
@@ -434,14 +434,14 @@ export default function KitchenPage() {
                             order.payment_status === 'paid' ? (
                               <button
                                 onClick={() => markAsUnpaid(order.id)}
-                                className="w-full py-1.5 rounded-xl text-xs font-semibold bg-gray-50 text-gray-500 hover:bg-gray-100 transition-colors border border-gray-200"
+                                className="w-full py-1.5 rounded-xl text-xs font-semibold bg-gray-50 dark:bg-slate-800 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors border border-gray-200 dark:border-slate-700"
                               >
                                 ↩ Undo Payment
                               </button>
                             ) : (
                               <button
                                 onClick={() => markAsPaid(order.id)}
-                                className="w-full py-1.5 rounded-xl text-xs font-semibold bg-green-50 text-green-700 hover:bg-green-100 transition-colors border border-green-200"
+                                className="w-full py-1.5 rounded-xl text-xs font-semibold bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/50 transition-colors border border-green-200 dark:border-green-800"
                               >
                                 ✓ Mark as Paid
                               </button>

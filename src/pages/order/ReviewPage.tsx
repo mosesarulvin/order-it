@@ -58,7 +58,7 @@ export default function ReviewPage() {
           <p className="text-gray-500 mt-2 text-sm">Your review helps us serve you better.</p>
           <button
             onClick={() => navigate(`/order/${slug}/success/${orderId}`)}
-            className="mt-6 w-full py-3 rounded-2xl bg-orange-500 text-white font-semibold hover:bg-orange-600 transition-all"
+            className="mt-6 w-full py-3 rounded-2xl bg-brand-primary text-white font-semibold hover:opacity-90 transition-all"
           >
             Back to Order
           </button>
@@ -70,7 +70,7 @@ export default function ReviewPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="bg-gradient-to-br from-orange-500 to-amber-500 text-white px-4 pt-safe pb-8">
+      <div className="gradient-brand-header text-white px-4 pt-safe pb-8">
         <div className="max-w-lg mx-auto pt-4">
           <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-white/80 hover:text-white mb-4 text-sm">
             <ArrowLeft size={16} /> Back
@@ -113,7 +113,7 @@ export default function ReviewPage() {
             placeholder="e.g. Arjun"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="w-full h-10 px-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-orange-400 transition-colors"
+            className="w-full h-10 px-3 rounded-xl border border-gray-200 text-sm outline-none focus-brand transition-colors"
           />
         </div>
 
@@ -128,7 +128,7 @@ export default function ReviewPage() {
             onChange={(e) => setComment(e.target.value)}
             rows={4}
             maxLength={500}
-            className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-orange-400 transition-colors resize-none"
+            className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus-brand transition-colors resize-none"
           />
           <p className="text-xs text-gray-400 text-right">{comment.length}/500</p>
         </div>

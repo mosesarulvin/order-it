@@ -47,20 +47,20 @@ export default function QRCodePage() {
   return (
     <div className="max-w-2xl space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-gray-900">QR Code</h2>
-        <p className="text-sm text-gray-500 mt-0.5">Print and place this QR code at your shop counter</p>
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">QR Code</h2>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Print and place this QR code at your shop counter</p>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
         {/* QR Display card */}
         <Card>
           <CardContent className="p-8 flex flex-col items-center gap-4">
-            <div className="p-4 bg-white rounded-2xl shadow-inner border border-gray-100">
-              <canvas ref={canvasRef} className="block" />
+            <div className="p-4 bg-white rounded-2xl shadow-inner border border-gray-100 dark:border-gray-200 w-full max-w-[300px] aspect-square flex items-center justify-center overflow-hidden">
+              <canvas ref={canvasRef} className="block w-full h-auto object-contain" />
             </div>
             <div className="text-center">
-              <p className="font-semibold text-gray-900">{shop?.name}</p>
-              <p className="text-xs text-gray-400 mt-1 break-all">{orderUrl}</p>
+              <p className="font-semibold text-gray-900 dark:text-white">{shop?.name}</p>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 break-all">{orderUrl}</p>
             </div>
             <div className="flex gap-2 w-full">
               <Button className="flex-1" onClick={downloadQR}>
@@ -77,7 +77,7 @@ export default function QRCodePage() {
         <div className="space-y-4">
           <Card>
             <CardContent className="p-5">
-              <h3 className="font-semibold text-gray-900 mb-3">How it works</h3>
+              <h3 className="font-semibold text-gray-900 dark:text-white mb-3">How it works</h3>
               <ol className="space-y-3">
                 {[
                   { step: '1', text: 'Download and print this QR code' },
@@ -87,10 +87,10 @@ export default function QRCodePage() {
                   { step: '5', text: 'You see orders live on your Kitchen dashboard' },
                 ].map(({ step, text }) => (
                   <li key={step} className="flex items-start gap-3">
-                    <span className="w-6 h-6 rounded-full bg-orange-100 text-orange-600 text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <span className="w-6 h-6 rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
                       {step}
                     </span>
-                    <span className="text-sm text-gray-600">{text}</span>
+                    <span className="text-sm text-gray-600 dark:text-gray-300">{text}</span>
                   </li>
                 ))}
               </ol>
@@ -99,9 +99,9 @@ export default function QRCodePage() {
 
           <Card>
             <CardContent className="p-5">
-              <h3 className="font-semibold text-gray-900 mb-3">Share link</h3>
+              <h3 className="font-semibold text-gray-900 dark:text-white mb-3">Share link</h3>
               <div className="flex gap-2">
-                <div className="flex-1 bg-gray-50 rounded-xl px-3 py-2 text-xs text-gray-600 truncate border border-gray-100">
+                <div className="flex-1 bg-gray-50 dark:bg-slate-800 rounded-xl px-3 py-2 text-xs text-gray-600 dark:text-gray-300 truncate border border-gray-100 dark:border-slate-700">
                   {orderUrl}
                 </div>
                 <Button variant="outline" size="sm" onClick={copyLink}>
@@ -112,7 +112,7 @@ export default function QRCodePage() {
                 href={orderUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="mt-3 flex items-center gap-1.5 text-sm text-orange-600 hover:text-orange-700 font-medium transition-colors"
+                className="mt-3 flex items-center gap-1.5 text-sm text-orange-600 dark:text-orange-400 hover:text-orange-700 dark:hover:text-orange-500 font-medium transition-colors"
               >
                 <ExternalLink size={14} /> Preview customer page
               </a>
@@ -122,11 +122,11 @@ export default function QRCodePage() {
       </div>
 
       {/* Print tip */}
-      <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex gap-3">
-        <QrCode size={20} className="text-amber-600 flex-shrink-0 mt-0.5" />
+      <div className="bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 rounded-2xl p-4 flex gap-3">
+        <QrCode size={20} className="text-amber-600 dark:text-amber-500 flex-shrink-0 mt-0.5" />
         <div>
-          <p className="text-sm font-semibold text-amber-800">Printing tip</p>
-          <p className="text-sm text-amber-700 mt-0.5">
+          <p className="text-sm font-semibold text-amber-800 dark:text-amber-400">Printing tip</p>
+          <p className="text-sm text-amber-700 dark:text-amber-500 mt-0.5">
             Print at minimum 5×5cm for easy scanning. You can also add your shop name and logo around the QR code for a professional look.
           </p>
         </div>

@@ -117,8 +117,8 @@ export default function OrdersPage() {
     <div className="max-w-5xl space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Orders</h2>
-          <p className="text-sm text-gray-500 mt-0.5">
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Orders</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
             {filtered.length < orders.length
               ? `Showing ${filtered.length} of ${orders.length} orders`
               : `${orders.length} total orders`}
@@ -140,7 +140,7 @@ export default function OrdersPage() {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as OrderStatus | 'all')}
-            className="h-10 pl-9 pr-8 rounded-xl border border-gray-200 bg-white text-sm text-gray-700 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100 appearance-none cursor-pointer"
+            className="h-10 pl-9 pr-8 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-gray-700 dark:text-gray-200 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100 dark:focus:ring-orange-900/50 appearance-none cursor-pointer"
           >
             <option value="all">All statuses</option>
             {STATUS_OPTIONS.map((s) => (
@@ -160,9 +160,9 @@ export default function OrdersPage() {
       ) : filtered.length === 0 ? (
         <Card>
           <CardContent className="py-16 text-center">
-            <ShoppingBag size={48} className="text-gray-200 mx-auto mb-3" />
-            <p className="text-lg font-semibold text-gray-700">No orders found</p>
-            <p className="text-sm text-gray-400 mt-1">Try adjusting your search or filter</p>
+            <ShoppingBag size={48} className="text-gray-200 dark:text-slate-700 mx-auto mb-3" />
+            <p className="text-lg font-semibold text-gray-700 dark:text-gray-200">No orders found</p>
+            <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">Try adjusting your search or filter</p>
           </CardContent>
         </Card>
       ) : (
@@ -176,7 +176,7 @@ export default function OrdersPage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-semibold text-gray-900 text-sm">{order.order_number}</span>
+                      <span className="font-semibold text-gray-900 dark:text-white text-sm">{order.order_number}</span>
                       {order.order_source === 'walkin' && (
                         <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-indigo-100 text-indigo-700">Walk-in</span>
                       )}
@@ -187,13 +187,13 @@ export default function OrdersPage() {
                         {order.payment_status === 'paid' ? 'Paid' : order.payment_status === 'failed' ? 'Failed' : 'Unpaid'}
                       </span>
                     </div>
-                    <p className="text-xs text-gray-500 mt-0.5">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                       {order.customer_name} · {order.customer_phone} · {formatDate(order.created_at)}
                     </p>
                   </div>
                   <div className="text-right flex-shrink-0">
-                    <p className="font-bold text-gray-900">{formatCurrency(order.total)}</p>
-                    <p className="text-xs text-gray-400 capitalize mt-0.5">{order.payment_method}</p>
+                    <p className="font-bold text-gray-900 dark:text-white">{formatCurrency(order.total)}</p>
+                    <p className="text-xs text-gray-400 dark:text-gray-500 capitalize mt-0.5">{order.payment_method}</p>
                   </div>
                 </div>
               </CardContent>

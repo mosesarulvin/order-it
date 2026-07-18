@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Tag, ShoppingBag, Gift, User } from 'lucide-react'
+import { ArrowLeft, Tag, ShoppingBag, Gift, User, UtensilsCrossed, ChevronRight } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import type { CustomerProfile, ProfileCoupon, Order } from '@/types'
@@ -69,7 +69,7 @@ export default function ProfileDashboardPage() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+        <div className="w-8 h-8 border-2 border-brand-primary border-t-transparent rounded-full animate-spin" />
       </div>
     )
   }
@@ -79,7 +79,7 @@ export default function ProfileDashboardPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="bg-gradient-to-br from-orange-500 to-amber-500 text-white px-4 pt-safe pb-10">
+      <div className="gradient-brand-header text-white px-4 pt-safe pb-10">
         <div className="max-w-lg mx-auto pt-4">
           <button onClick={() => navigate(`/order/${slug}`)} className="flex items-center gap-2 text-white/80 hover:text-white mb-4 text-sm">
             <ArrowLeft size={16} /> Back to menu
@@ -113,14 +113,14 @@ export default function ProfileDashboardPage() {
         </div>
       </div>
 
-      <div className="max-w-lg mx-auto px-4 -mt-4 pb-8 space-y-4">
+      <div className="max-w-lg mx-auto px-4 -mt-4 pb-32 space-y-4">
         {/* Tabs */}
         <div className="bg-white rounded-2xl border border-gray-100 flex overflow-hidden shadow-sm">
           {(['coupons', 'history'] as const).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
-              className={`flex-1 py-3 text-sm font-semibold capitalize transition-colors ${tab === t ? 'bg-orange-500 text-white' : 'text-gray-500 hover:bg-gray-50'}`}
+              className={`flex-1 py-3 text-sm font-semibold capitalize transition-colors ${tab === t ? 'bg-brand-primary text-white' : 'text-gray-500 hover:bg-gray-50'}`}
             >
               {t === 'coupons' ? `🎟 Coupons (${unusedCoupons.length})` : `📋 Order History`}
             </button>
@@ -141,9 +141,9 @@ export default function ProfileDashboardPage() {
               <>
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-1">Available to use</p>
                 {unusedCoupons.map((c) => (
-                  <div key={c.id} className="bg-white rounded-2xl border-2 border-dashed border-orange-300 p-4 flex items-center gap-3">
-                    <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                      <Tag size={18} className="text-orange-500" />
+                  <div key={c.id} className="bg-white rounded-2xl border-2 border-dashed border-brand-primary-light p-4 flex items-center gap-3">
+                    <div className="w-10 h-10 bg-brand-primary-lighter rounded-xl flex items-center justify-center flex-shrink-0">
+                      <Tag size={18} className="text-brand-primary" />
                     </div>
                     <div className="flex-1">
                       <p className="font-bold text-gray-900 font-mono tracking-wide">{c.coupon_code}</p>
@@ -156,7 +156,7 @@ export default function ProfileDashboardPage() {
                         navigate(`/order/${slug}`)
                         toast.success('Add items to your cart, coupon will be applied at checkout')
                       }}
-                      className="px-3 py-1.5 rounded-xl bg-orange-500 text-white text-xs font-semibold hover:bg-orange-600 transition-colors"
+                      className="px-3 py-1.5 rounded-xl bg-brand-primary text-white text-xs font-semibold hover:opacity-90 transition-colors"
                     >
                       Use Now
                     </button>
@@ -197,7 +197,7 @@ export default function ProfileDashboardPage() {
                 <div
                   key={order.id}
                   onClick={() => navigate(`/order/${slug}/success/${order.id}`)}
-                  className="bg-white rounded-2xl border border-gray-100 p-4 cursor-pointer hover:border-orange-200 transition-colors"
+                  className="bg-white rounded-2xl border border-gray-100 p-4 cursor-pointer hover:border-brand-primary-light transition-colors"
                 >
                   <div className="flex items-center justify-between mb-2">
                     <span className="font-semibold text-gray-900 text-sm font-mono">{order.order_number}</span>
@@ -219,6 +219,27 @@ export default function ProfileDashboardPage() {
             )}
           </div>
         )}
+      </div>
+
+      {/* Floating order button */}
+      <div
+        className="fixed bottom-6 left-0 right-0 px-4 z-20"
+        style={{ animation: 'slideUp 0.3s ease-out' }}
+      >
+        <div className="max-w-lg mx-auto">
+          <button
+            onClick={() => navigate(`/order/${slug}`)}
+            className="w-full bg-brand-primary text-white rounded-2xl p-4 flex items-center justify-between shadow-xl shadow-brand-primary hover:opacity-90 active:scale-[0.98] transition-all"
+          >
+            <div className="flex items-center gap-3">
+              <span className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
+                <UtensilsCrossed size={16} className="text-white" />
+              </span>
+              <span className="font-semibold">Browse Menu &amp; Order</span>
+            </div>
+            <ChevronRight size={18} />
+          </button>
+        </div>
       </div>
     </div>
   )
