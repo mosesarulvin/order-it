@@ -3,7 +3,6 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
-import { Input } from '@/components/ui/Input'
 import toast from 'react-hot-toast'
 import { UserPlus, Users, Trash2, Shield, ChevronDown } from 'lucide-react'
 

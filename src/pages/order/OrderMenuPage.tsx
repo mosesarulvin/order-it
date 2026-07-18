@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Plus, Minus, Search, Star, Clock, ChevronRight, UtensilsCrossed, ClipboardList, ShoppingBag, Zap, X as XIcon, User, ChevronDown } from 'lucide-react'
+import { Plus, Minus, Search, Star, Clock, ChevronRight, UtensilsCrossed, ClipboardList, ShoppingBag, Zap, X as XIcon, User } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { formatCurrency, getOrderStatusLabel, getOrderStatusColor } from '@/lib/utils'
 import { useCartStore } from '@/store/cartStore'
