@@ -43,7 +43,6 @@ export default function KitchenPage() {
   const [cancelTarget, setCancelTarget] = useState<Order | null>(null)
   const [dragOverCol, setDragOverCol] = useState<OrderStatus | null>(null)
   const channelRef = useRef<RealtimeChannel | null>(null)
-  const audioRef = useRef<HTMLAudioElement | null>(null)
   const dragOrderRef = useRef<Order | null>(null)
 
   useEffect(() => {
@@ -77,32 +76,12 @@ export default function KitchenPage() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `shop_id=eq.${shop.id}` }, (payload) => {
         if (payload.eventType === 'INSERT') {
           fetchOrders(true)  // silent refresh — no skeleton
-          playNotification()
-          toast('🛎️ New order received!', { icon: '🔔', style: { fontWeight: '600' } })
         } else if (payload.eventType === 'UPDATE') {
           fetchOrders(true)  // silent refresh
         }
       })
       .subscribe()
     channelRef.current = channel
-  }
-
-  const playNotification = () => {
-    try {
-      const ctx = new AudioContext()
-      const osc = ctx.createOscillator()
-      const gain = ctx.createGain()
-      osc.connect(gain)
-      gain.connect(ctx.destination)
-      osc.frequency.setValueAtTime(880, ctx.currentTime)
-      osc.frequency.setValueAtTime(1100, ctx.currentTime + 0.1)
-      gain.gain.setValueAtTime(0.3, ctx.currentTime)
-      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4)
-      osc.start(ctx.currentTime)
-      osc.stop(ctx.currentTime + 0.4)
-    } catch {
-      // Audio context not available
-    }
   }
 
   const updateStatus = async (orderId: string, status: OrderStatus) => {
@@ -457,7 +436,6 @@ export default function KitchenPage() {
           )
         })}
       </div>
-      <audio ref={audioRef} />
 
       <CancelOrderModal
         open={!!cancelTarget}

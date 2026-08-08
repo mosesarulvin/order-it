@@ -150,7 +150,7 @@ export default function CustomersPage() {
   }
 
   return (
-    <div className="space-y-5 max-w-5xl">
+    <div className="max-w-4xl mx-auto space-y-5">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Customers</h1>

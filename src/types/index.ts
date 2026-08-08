@@ -12,6 +12,8 @@ export interface Shop {
   tax_percent: number
   coupons_enabled: boolean
   reviews_enabled: boolean
+  accepts_upi: boolean
+  accepts_cash: boolean
   auto_schedule_enabled: boolean
   auto_open_time: string | null
   auto_close_time: string | null
@@ -46,6 +48,7 @@ export interface MenuItem {
   name: string
   description: string | null
   price: number
+  calories: number | null
   image_url: string | null
   is_available: boolean
   is_popular: boolean

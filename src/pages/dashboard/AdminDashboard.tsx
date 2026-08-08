@@ -69,7 +69,7 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className="max-w-6xl space-y-6">
+    <div className="max-w-4xl mx-auto space-y-6">
       <div className="bg-slate-900 rounded-2xl p-6 text-white shadow-lg">
         <h2 className="text-2xl font-bold flex items-center gap-2"><Shield /> Super Admin Panel</h2>
         <p className="text-slate-400 mt-1">Manage platform wide settings and all shops.</p>

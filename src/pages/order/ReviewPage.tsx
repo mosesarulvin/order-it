@@ -49,16 +49,16 @@ export default function ReviewPage() {
 
   if (submitted) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
+      <div className="min-h-screen bg-gray-50 dark:bg-slate-950 flex items-center justify-center p-6 transition-colors">
         <div className="text-center max-w-sm">
-          <div className="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <div className="w-20 h-20 bg-amber-100 dark:bg-amber-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
             <Star size={40} className="text-amber-500 fill-amber-500" />
           </div>
-          <h2 className="text-2xl font-bold text-gray-900">Thank you!</h2>
-          <p className="text-gray-500 mt-2 text-sm">Your review helps us serve you better.</p>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Thank you!</h2>
+          <p className="text-gray-500 dark:text-gray-400 mt-2 text-sm">Your review helps us serve you better.</p>
           <button
             onClick={() => navigate(`/order/${slug}/success/${orderId}`)}
-            className="mt-6 w-full py-3 rounded-2xl bg-brand-primary text-white font-semibold hover:opacity-90 transition-all"
+            className="mt-6 w-full py-3 rounded-2xl bg-brand-primary text-white font-semibold hover:opacity-90 transition-all shadow-sm"
           >
             Back to Order
           </button>
@@ -68,7 +68,7 @@ export default function ReviewPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-slate-950 transition-colors">
       {/* Header */}
       <div className="gradient-brand-header text-white px-4 pt-safe pb-8">
         <div className="max-w-lg mx-auto pt-4">
@@ -82,8 +82,8 @@ export default function ReviewPage() {
 
       <div className="max-w-lg mx-auto px-4 py-6 space-y-5">
         {/* Star rating */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-6 text-center space-y-3">
-          <p className="font-semibold text-gray-900">How was your experience?</p>
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-6 text-center space-y-3 shadow-sm">
+          <p className="font-semibold text-gray-900 dark:text-white">How was your experience?</p>
           <div className="flex justify-center gap-2">
             {[1, 2, 3, 4, 5].map((s) => (
               <button
@@ -95,31 +95,31 @@ export default function ReviewPage() {
               >
                 <Star
                   size={36}
-                  className={`transition-colors ${s <= (hovered || rating) ? 'text-amber-400 fill-amber-400' : 'text-gray-200 fill-gray-200'}`}
+                  className={`transition-colors ${s <= (hovered || rating) ? 'text-amber-400 fill-amber-400' : 'text-gray-200 dark:text-slate-700 fill-gray-200 dark:fill-slate-700'}`}
                 />
               </button>
             ))}
           </div>
           {(hovered || rating) > 0 && (
-            <p className="text-sm font-semibold text-amber-600 animate-pulse">{ratingLabels[hovered || rating]}</p>
+            <p className="text-sm font-semibold text-amber-600 dark:text-amber-400 animate-pulse">{ratingLabels[hovered || rating]}</p>
           )}
         </div>
 
         {/* Name */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-4 space-y-3">
-          <label className="block text-sm font-medium text-gray-700">Your name (optional)</label>
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-4 space-y-3 shadow-sm">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Your name (optional)</label>
           <input
             type="text"
             placeholder="e.g. Arjun"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="w-full h-10 px-3 rounded-xl border border-gray-200 text-sm outline-none focus-brand transition-colors"
+            className="w-full h-10 px-3 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 text-sm outline-none focus-brand transition-colors"
           />
         </div>
 
         {/* Comment */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-4 space-y-3">
-          <label className="block text-sm font-medium text-gray-700 flex items-center gap-1.5">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-4 space-y-3 shadow-sm">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
             <MessageSquare size={14} /> Comments (optional)
           </label>
           <textarea
@@ -128,9 +128,9 @@ export default function ReviewPage() {
             onChange={(e) => setComment(e.target.value)}
             rows={4}
             maxLength={500}
-            className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus-brand transition-colors resize-none"
+            className="w-full px-3 py-2.5 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 text-sm outline-none focus-brand transition-colors resize-none"
           />
-          <p className="text-xs text-gray-400 text-right">{comment.length}/500</p>
+          <p className="text-xs text-gray-400 dark:text-gray-500 text-right">{comment.length}/500</p>
         </div>
 
         <Button

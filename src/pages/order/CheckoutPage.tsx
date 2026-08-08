@@ -30,6 +30,8 @@ export default function CheckoutPage() {
   const [taxPercent, setTaxPercent] = useState(0)
   const [shopOpen, setShopOpen] = useState<boolean | null>(null)
   const [couponsEnabled, setCouponsEnabled] = useState(true)
+  const [acceptsUpi, setAcceptsUpi] = useState(true)
+  const [acceptsCash, setAcceptsCash] = useState(true)
   const [isAnonymous, setIsAnonymous] = useState(false)
   const [couponInput, setCouponInput] = useState('')
   const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null)
@@ -41,12 +43,21 @@ export default function CheckoutPage() {
     resolver: zodResolver(baseSchema),
   })
 
-  // Fetch shop tax upfront so the displayed total is accurate
   useEffect(() => {
     if (!slug) return
-    supabase.from('shops').select('id, tax_percent, is_open, coupons_enabled').eq('slug', slug).single()
+    supabase.from('shops').select('id, tax_percent, is_open, coupons_enabled, accepts_upi, accepts_cash').eq('slug', slug).single()
       .then(({ data }) => {
-        if (data) { setShopId(data.id); setTaxPercent(data.tax_percent); setShopOpen(data.is_open); setCouponsEnabled(data.coupons_enabled ?? true) }
+        if (data) { 
+          setShopId(data.id)
+          setTaxPercent(data.tax_percent)
+          setShopOpen(data.is_open)
+          setCouponsEnabled(data.coupons_enabled ?? true)
+          setAcceptsUpi(data.accepts_upi ?? true)
+          setAcceptsCash(data.accepts_cash ?? true)
+          
+          if (data.accepts_upi && !data.accepts_cash) setPaymentMethod('upi')
+          else if (!data.accepts_upi && data.accepts_cash) setPaymentMethod('cash')
+        }
         else { setShopOpen(false) }
       })
   }, [slug])
@@ -95,7 +106,7 @@ export default function CheckoutPage() {
         if (!data?.coupon_code) return
         applyCode(data.coupon_code)
       })
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug])
 
   // Redirect to menu if cart is empty (e.g. direct URL access)
@@ -371,7 +382,7 @@ export default function CheckoutPage() {
                   )}
                   <p className="text-sm font-semibold text-brand-accent dark:text-brand-primary mt-0.5">{formatCurrency(ci.menu_item.price)}</p>
                 </div>
-                  <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2">
                   <div className="flex items-center gap-1.5 bg-gray-50 dark:bg-slate-800 rounded-xl p-1">
                     <button
                       onClick={() => updateQuantityAt(idx, ci.quantity - 1)}
@@ -416,37 +427,37 @@ export default function CheckoutPage() {
 
           {/* Coupon input — only shown when coupons are enabled for this shop */}
           {couponsEnabled && (
-          <div className="px-4 py-3 border-t border-gray-100 dark:border-slate-700 bg-white dark:bg-slate-900">
-            {appliedCoupon ? (
-              <div className="flex items-center justify-between bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl px-3 py-2">
-                <div className="flex items-center gap-2 text-green-700 dark:text-green-400 text-sm font-medium">
-                  <Tag size={14} />
-                  <span>{appliedCoupon.code} · saving {formatCurrency(discountAmount)}</span>
+            <div className="px-4 py-3 border-t border-gray-100 dark:border-slate-700 bg-white dark:bg-slate-900">
+              {appliedCoupon ? (
+                <div className="flex items-center justify-between bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl px-3 py-2">
+                  <div className="flex items-center gap-2 text-green-700 dark:text-green-400 text-sm font-medium">
+                    <Tag size={14} />
+                    <span>{appliedCoupon.code} · saving {formatCurrency(discountAmount)}</span>
+                  </div>
+                  <button onClick={removeCoupon} className="text-green-600 dark:text-green-500 hover:text-red-500 dark:hover:text-red-400 transition-colors">
+                    <X size={16} />
+                  </button>
                 </div>
-                <button onClick={removeCoupon} className="text-green-600 dark:text-green-500 hover:text-red-500 dark:hover:text-red-400 transition-colors">
-                  <X size={16} />
-                </button>
-              </div>
-            ) : (
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  placeholder="Coupon code"
-                  value={couponInput}
-                  onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
-                  onKeyDown={(e) => e.key === 'Enter' && applyCoupon()}
-                  className="flex-1 h-9 px-3 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 text-sm outline-none focus-brand transition-colors uppercase placeholder:normal-case"
-                />
-                <button
-                  onClick={applyCoupon}
-                  disabled={couponLoading || !couponInput.trim()}
-                  className="px-4 h-9 rounded-xl bg-brand-primary-lighter text-brand-accent text-sm font-semibold hover:bg-brand-primary-light disabled:opacity-40 transition-colors"
-                >
-                  {couponLoading ? '...' : 'Apply'}
-                </button>
-              </div>
-            )}
-          </div>
+              ) : (
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Coupon code"
+                    value={couponInput}
+                    onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
+                    onKeyDown={(e) => e.key === 'Enter' && applyCoupon()}
+                    className="flex-1 h-9 px-3 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 text-sm outline-none focus-brand transition-colors uppercase placeholder:normal-case"
+                  />
+                  <button
+                    onClick={applyCoupon}
+                    disabled={couponLoading || !couponInput.trim()}
+                    className="px-4 h-9 rounded-xl bg-brand-primary-lighter text-brand-accent text-sm font-semibold hover:bg-brand-primary-light disabled:opacity-40 transition-colors"
+                  >
+                    {couponLoading ? '...' : 'Apply'}
+                  </button>
+                </div>
+              )}
+            </div>
           )}
         </div>
         <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-4 space-y-4">
@@ -472,9 +483,8 @@ export default function CheckoutPage() {
           <button
             type="button"
             onClick={() => setIsAnonymous((v) => !v)}
-            className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl border transition-all ${
-              isAnonymous ? 'border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20' : 'border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 hover:bg-gray-100 dark:hover:bg-slate-700'
-            }`}
+            className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl border transition-all ${isAnonymous ? 'border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20' : 'border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 hover:bg-gray-100 dark:hover:bg-slate-700'
+              }`}
           >
             <div className="flex items-center gap-2">
               <EyeOff size={15} className={isAnonymous ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-gray-500'} />
@@ -499,49 +509,53 @@ export default function CheckoutPage() {
         </div>
 
         {/* Payment method */}
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-4 space-y-3">
-          <h2 className="font-semibold text-gray-900 dark:text-white text-sm">How would you like to pay?</h2>
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              onClick={() => setPaymentMethod('upi')}
-              className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${
-                paymentMethod === 'upi'
-                  ? 'border-brand-primary bg-brand-primary-lighter dark:bg-brand-primary-shadow'
-                  : 'border-gray-200 dark:border-slate-700 hover:border-gray-300 dark:hover:border-slate-600'
-              }`}
-            >
-              <Wallet size={24} className={paymentMethod === 'upi' ? 'text-brand-primary' : 'text-gray-400 dark:text-gray-500'} />
-              <div>
-                <p className={`text-sm font-semibold ${paymentMethod === 'upi' ? 'text-brand-primary-dark dark:text-brand-primary' : 'text-gray-700 dark:text-gray-300'}`}>Pay Online</p>
-                <p className="text-xs text-gray-400 dark:text-gray-500">UPI / Card</p>
+        {(acceptsUpi || acceptsCash) && (
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-4 space-y-3">
+            <h2 className="font-semibold text-gray-900 dark:text-white text-sm">How would you like to pay?</h2>
+            <div className={`grid gap-3 ${acceptsUpi && acceptsCash ? 'grid-cols-2' : 'grid-cols-1'}`}>
+              {acceptsUpi && (
+                <button
+                  onClick={() => setPaymentMethod('upi')}
+                  className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${paymentMethod === 'upi'
+                      ? 'border-brand-primary bg-brand-primary-lighter dark:bg-brand-primary-shadow'
+                      : 'border-gray-200 dark:border-slate-700 hover:border-gray-300 dark:hover:border-slate-600'
+                    }`}
+                >
+                  <Wallet size={24} className={paymentMethod === 'upi' ? 'text-brand-primary' : 'text-gray-400 dark:text-gray-500'} />
+                  <div>
+                    <p className={`text-sm font-semibold ${paymentMethod === 'upi' ? 'text-brand-primary-dark dark:text-brand-primary' : 'text-gray-700 dark:text-gray-300'}`}>Pay Online</p>
+                    <p className="text-xs text-gray-400 dark:text-gray-500">UPI / Card</p>
+                  </div>
+                </button>
+              )}
+              {acceptsCash && (
+                <button
+                  onClick={() => setPaymentMethod('cash')}
+                  className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${paymentMethod === 'cash'
+                      ? 'border-brand-primary bg-brand-primary-lighter dark:bg-brand-primary-shadow'
+                      : 'border-gray-200 dark:border-slate-700 hover:border-gray-300 dark:hover:border-slate-600'
+                    }`}
+                >
+                  <Banknote size={24} className={paymentMethod === 'cash' ? 'text-brand-primary' : 'text-gray-400 dark:text-gray-500'} />
+                  <div>
+                    <p className={`text-sm font-semibold ${paymentMethod === 'cash' ? 'text-brand-primary-dark dark:text-brand-primary' : 'text-gray-700 dark:text-gray-300'}`}>Pay at Counter</p>
+                    <p className="text-xs text-gray-400 dark:text-gray-500">Cash / UPI QR</p>
+                  </div>
+                </button>
+              )}
+            </div>
+            {paymentMethod === 'upi' && acceptsUpi && (
+              <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-3 text-xs text-blue-700 dark:text-blue-400 border border-blue-100 dark:border-blue-800">
+                💳 You'll be redirected to pay {formatCurrency(total)} via UPI / Card after placing your order.
               </div>
-            </button>
-            <button
-              onClick={() => setPaymentMethod('cash')}
-              className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${
-                paymentMethod === 'cash'
-                  ? 'border-brand-primary bg-brand-primary-lighter dark:bg-brand-primary-shadow'
-                  : 'border-gray-200 dark:border-slate-700 hover:border-gray-300 dark:hover:border-slate-600'
-              }`}
-            >
-              <Banknote size={24} className={paymentMethod === 'cash' ? 'text-brand-primary' : 'text-gray-400 dark:text-gray-500'} />
-              <div>
-                <p className={`text-sm font-semibold ${paymentMethod === 'cash' ? 'text-brand-primary-dark dark:text-brand-primary' : 'text-gray-700 dark:text-gray-300'}`}>Pay at Counter</p>
-                <p className="text-xs text-gray-400 dark:text-gray-500">Cash / UPI QR</p>
+            )}
+            {paymentMethod === 'cash' && acceptsCash && (
+              <div className="bg-green-50 dark:bg-green-900/20 rounded-xl p-3 text-xs text-green-700 dark:text-green-400 border border-green-100 dark:border-green-800">
+                💵 Place your order now and pay at the counter when you collect it.
               </div>
-            </button>
+            )}
           </div>
-          {paymentMethod === 'upi' && (
-            <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-3 text-xs text-blue-700 dark:text-blue-400 border border-blue-100 dark:border-blue-800">
-              💳 You'll be redirected to pay {formatCurrency(total)} via UPI / Card after placing your order.
-            </div>
-          )}
-          {paymentMethod === 'cash' && (
-            <div className="bg-green-50 dark:bg-green-900/20 rounded-xl p-3 text-xs text-green-700 dark:text-green-400 border border-green-100 dark:border-green-800">
-              💵 Place your order now and pay at the counter when you collect it.
-            </div>
-          )}
-        </div>
+        )}
       </div>
 
       {/* Place order button */}

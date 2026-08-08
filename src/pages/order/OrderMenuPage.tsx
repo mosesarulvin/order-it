@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Plus, Minus, Search, Star, Clock, ChevronRight, UtensilsCrossed, ClipboardList, ShoppingBag, Zap, X as XIcon, User } from 'lucide-react'
+import { Plus, Minus, Search, Star, Clock, ChevronLeft, ChevronRight, UtensilsCrossed, ClipboardList, X as XIcon, User, Flame } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { formatCurrency, getOrderStatusLabel, getOrderStatusColor } from '@/lib/utils'
 import { useCartStore } from '@/store/cartStore'
@@ -28,7 +28,37 @@ export default function OrderMenuPage() {
   // Customization selector state
   const [customizeItem, setCustomizeItem] = useState<MenuItem | null>(null)
   const [customSelections, setCustomSelections] = useState<Record<string, string[]>>({})
+  const [viewingItem, setViewingItem] = useState<MenuItem | null>(null)
   const categoryRefs = useRef<Record<string, HTMLDivElement>>({})
+  const categoryNavRef = useRef<HTMLDivElement | null>(null)
+  const [canScrollLeft, setCanScrollLeft] = useState(false)
+  const [canScrollRight, setCanScrollRight] = useState(false)
+
+  const checkCategoryScroll = () => {
+    const el = categoryNavRef.current
+    if (!el) return
+    setCanScrollLeft(el.scrollLeft > 5)
+    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 5)
+  }
+
+  useEffect(() => {
+    checkCategoryScroll()
+    const el = categoryNavRef.current
+    if (!el) return
+    el.addEventListener('scroll', checkCategoryScroll)
+    window.addEventListener('resize', checkCategoryScroll)
+    return () => {
+      el.removeEventListener('scroll', checkCategoryScroll)
+      window.removeEventListener('resize', checkCategoryScroll)
+    }
+  }, [categories])
+
+  const scrollCategories = (direction: 'left' | 'right') => {
+    const el = categoryNavRef.current
+    if (!el) return
+    const scrollAmount = direction === 'left' ? -180 : 180
+    el.scrollBy({ left: scrollAmount, behavior: 'smooth' })
+  }
 
   const { items: cartItems, addItem, updateQuantity, getTotalItems, getTotalPrice, setShopSlug, shopSlug, clearCart } = useCartStore()
 
@@ -162,7 +192,12 @@ export default function OrderMenuPage() {
 
   const scrollToCategory = (categoryId: string) => {
     setActiveCategory(categoryId)
-    categoryRefs.current[categoryId]?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    const el = categoryRefs.current[categoryId]
+    if (el) {
+      const offset = 60 // Account for sticky header
+      const top = el.getBoundingClientRect().top + window.scrollY - offset
+      window.scrollTo({ top, behavior: 'smooth' })
+    }
   }
 
   const searchedItems = useMemo(() => {
@@ -170,7 +205,11 @@ export default function OrderMenuPage() {
   }, [items, search])
 
   const filteredItems = (categoryId: string) => {
-    return searchedItems.filter((i) => i.category_id === categoryId && !i.is_instant)
+    return searchedItems.filter((i) => {
+      if (i.category_id !== categoryId) return false
+      if (grabAndGoOnly && !i.is_instant) return false
+      return true
+    })
   }
 
   const instantItems = useMemo(() => {
@@ -222,7 +261,7 @@ export default function OrderMenuPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-slate-950 pb-40">
+    <div className={`min-h-screen bg-gray-50 dark:bg-slate-950 transition-colors ${totalItems > 0 ? 'pb-28' : 'pb-10'}`}>
       {/* Header */}
       <div className="gradient-brand-header text-white pt-safe px-4 pb-6">
         <div className="max-w-lg mx-auto">
@@ -324,26 +363,54 @@ export default function OrderMenuPage() {
       {/* Category pills — hidden while searching or when grab-and-go-only mode */}
       {!search && !grabAndGoOnly && (
       <div className="sticky top-0 z-10 bg-white dark:bg-slate-950 border-b border-gray-100 dark:border-slate-800 shadow-sm">
-        <div className="max-w-lg mx-auto">
-          <div className="flex gap-2 overflow-x-auto px-4 py-3 no-scrollbar" style={{ scrollbarWidth: 'none' }}>
+        <div className="max-w-lg mx-auto relative flex items-center">
+          {canScrollLeft && (
+            <button
+              onClick={() => scrollCategories('left')}
+              className="absolute left-1 z-20 w-7 h-7 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-full shadow-md text-gray-700 dark:text-gray-200 flex items-center justify-center hover:scale-105 active:scale-95 transition-all"
+              aria-label="Scroll categories left"
+            >
+              <ChevronLeft size={16} />
+            </button>
+          )}
+
+          <div
+            ref={categoryNavRef}
+            className="flex gap-2 overflow-x-auto px-4 py-3 no-scrollbar w-full"
+            style={{ scrollbarWidth: 'none' }}
+          >
             {loading
               ? Array.from({ length: 4 }).map((_, i) => (
                   <div key={i} className="h-8 w-24 bg-gray-100 dark:bg-slate-800 rounded-full animate-pulse flex-shrink-0" />
                 ))
-              : categories.map((cat) => (
-                  <button
-                    key={cat.id}
-                    onClick={() => scrollToCategory(cat.id)}
-                    className={`flex-shrink-0 h-8 px-4 rounded-full text-sm font-medium transition-all ${
-                      activeCategory === cat.id
-                        ? 'bg-brand-primary text-white shadow-sm shadow-brand-primary'
-                        : 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-700'
-                    }`}
-                  >
-                    {cat.name}
-                  </button>
-                ))}
+              : (
+                <>
+                  {categories.filter(cat => filteredItems(cat.id).length > 0).map((cat) => (
+                    <button
+                      key={cat.id}
+                      onClick={() => scrollToCategory(cat.id)}
+                      className={`flex-shrink-0 h-8 px-4 rounded-full text-sm font-medium transition-all ${
+                        activeCategory === cat.id
+                          ? 'bg-brand-primary text-white shadow-sm shadow-brand-primary'
+                          : 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-700'
+                      }`}
+                    >
+                      {cat.name}
+                    </button>
+                  ))}
+                </>
+              )}
           </div>
+
+          {canScrollRight && (
+            <button
+              onClick={() => scrollCategories('right')}
+              className="absolute right-1 z-20 w-7 h-7 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-full shadow-md text-gray-700 dark:text-gray-200 flex items-center justify-center hover:scale-105 active:scale-95 transition-all"
+              aria-label="Scroll categories right"
+            >
+              <ChevronRight size={16} />
+            </button>
+          )}
         </div>
       </div>
       )}
@@ -368,7 +435,7 @@ export default function OrderMenuPage() {
             {Array.from({ length: 6 }).map((_, i) => <MenuItemSkeleton key={i} />)}
           </div>
         ) : (() => {
-          const hasAnyResults = (!grabAndGoOnly && categories.some((cat) => filteredItems(cat.id).length > 0)) || instantItems.length > 0
+          const hasAnyResults = categories.some((cat) => filteredItems(cat.id).length > 0)
           if (!hasAnyResults) {
             return (
               <div className="py-20 text-center">
@@ -380,50 +447,7 @@ export default function OrderMenuPage() {
           }
           return (
             <>
-              {/* Grab & Go section — instant items */}
-              {instantItems.length > 0 && (
-                <div>
-                  <div className="flex items-center gap-2 mb-3">
-                    <Zap size={16} className="text-brand-primary" />
-                    <h2 className="text-lg font-bold text-gray-900 dark:text-white">Grab &amp; Go</h2>
-                    <span className="text-xs text-brand-accent bg-brand-accent-lighter dark:bg-brand-primary-shadow dark:text-brand-primary-light px-2 py-0.5 rounded-full">Ready instantly</span>
-                  </div>
-                  <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar" style={{ scrollbarWidth: 'none' }}>
-                    {instantItems.map((item) => {
-                      const outOfStock = item.stock_quantity === 0
-                      const lowStock = item.stock_quantity !== null && item.stock_quantity > 0 && item.stock_quantity <= item.low_stock_threshold
-                      return (
-                        <div key={item.id} className="flex-shrink-0 w-36 bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm overflow-hidden">
-                          {item.image_url ? (
-                            <img src={item.image_url} alt={item.name} loading="lazy" className="w-full h-24 object-cover" />
-                          ) : (
-                            <div className="w-full h-24 gradient-brand-light dark:!bg-none dark:!bg-slate-800 flex items-center justify-center">
-                              <ShoppingBag size={28} className="text-brand-primary-light text-opacity-80" />
-                            </div>
-                          )}
-                          <div className="p-2.5">
-                            <p className="text-xs font-semibold text-gray-900 dark:text-white leading-snug line-clamp-2">{item.name}</p>
-                            {lowStock && <p className="text-xs text-brand-primary mt-0.5">Only {item.stock_quantity} left</p>}
-                            {outOfStock && <p className="text-xs text-red-500 mt-0.5">Out of stock</p>}
-                            <div className="flex items-center justify-between mt-2">
-                              <p className="text-xs font-bold text-brand-accent dark:text-brand-primary-light">{formatCurrency(item.price)}</p>
-                              <button
-                                disabled={outOfStock}
-                                onClick={() => handleAddItem(item)}
-                                className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${outOfStock ? 'bg-gray-100 dark:bg-slate-800 text-gray-400 cursor-not-allowed' : 'bg-brand-primary text-white hover:opacity-90 active:scale-95'}`}
-                              >
-                                <Plus size={13} />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {!grabAndGoOnly && categories.map((cat) => {
+              {categories.map((cat) => {
                 const catItems = filteredItems(cat.id)
                 if (catItems.length === 0) return null
                 return (
@@ -456,9 +480,19 @@ export default function OrderMenuPage() {
                                     <Star size={9} fill="currentColor" /> Popular
                                   </span>
                                 )}
+                                {item.calories && (
+                                  <span className="flex-shrink-0 inline-flex items-center gap-0.5 text-xs bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 px-1.5 py-0.5 rounded-full">
+                                    <Flame size={10} /> {item.calories} kcal
+                                  </span>
+                                )}
                               </div>
                               {item.description && (
-                                <p className="text-xs text-gray-400 mt-1 leading-relaxed line-clamp-2">{item.description}</p>
+                                <p 
+                                  onClick={() => setViewingItem(item)}
+                                  className="text-xs text-gray-400 mt-1 leading-relaxed line-clamp-2 cursor-pointer hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                                >
+                                  {item.description}
+                                </p>
                               )}
                               {lowStock && <p className="text-xs text-brand-primary mt-1">Only {item.stock_quantity} left</p>}
                               {outOfStock && <p className="text-xs text-red-500 mt-1">Out of stock</p>}
@@ -506,6 +540,61 @@ export default function OrderMenuPage() {
           )
         })()}
       </div>
+
+      {/* Item Details Popup */}
+      {viewingItem && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={() => setViewingItem(null)}>
+          <div className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-3xl overflow-hidden shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            {viewingItem.image_url ? (
+              <div className="relative h-64 w-full bg-gray-50 dark:bg-slate-950 flex items-center justify-center">
+                <img src={viewingItem.image_url} alt={viewingItem.name} loading="lazy" className="w-full h-full object-contain p-2" />
+                <button 
+                  onClick={() => setViewingItem(null)} 
+                  className="absolute top-3 right-3 w-8 h-8 bg-black/50 backdrop-blur-md rounded-full flex items-center justify-center text-white hover:bg-black/70 transition-colors"
+                >
+                  <XIcon size={18} />
+                </button>
+              </div>
+            ) : (
+              <div className="flex justify-end p-3 pb-0">
+                <button onClick={() => setViewingItem(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                  <XIcon size={20} />
+                </button>
+              </div>
+            )}
+            
+            <div className="p-5">
+              <div className="flex items-start justify-between gap-3 mb-2">
+                <div>
+                  <h3 className="font-bold text-gray-900 dark:text-white text-lg">{viewingItem.name}</h3>
+                  {viewingItem.calories && (
+                    <span className="inline-flex items-center gap-1 text-xs font-medium text-orange-600 dark:text-orange-400 mt-0.5 bg-orange-50 dark:bg-orange-900/20 px-2 py-0.5 rounded-md">
+                      <Flame size={12} /> {viewingItem.calories} kcal
+                    </span>
+                  )}
+                </div>
+                <span className="font-bold text-brand-accent dark:text-brand-primary-light shrink-0 mt-1">
+                  {formatCurrency(viewingItem.price)}
+                </span>
+              </div>
+              
+              <div className="max-h-[40vh] overflow-y-auto no-scrollbar mb-5">
+                <p className="text-sm text-gray-600 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">{viewingItem.description}</p>
+              </div>
+              
+              <button
+                onClick={() => {
+                  setViewingItem(null)
+                  handleAddItem(viewingItem)
+                }}
+                className="w-full py-3.5 rounded-2xl font-bold text-sm bg-brand-primary text-white shadow-lg shadow-brand-primary/30 hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+              >
+                <Plus size={16} /> Add to Cart
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Customization selector sheet */}
       {customizeItem && (

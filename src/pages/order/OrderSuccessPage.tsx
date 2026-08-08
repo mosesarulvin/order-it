@@ -162,7 +162,13 @@ export default function OrderSuccessPage() {
       {/* Hero */}
       <div className={`${heroBg} text-white px-4 pt-safe pb-8 transition-all duration-500`}>
         <div className="max-w-lg mx-auto">
-          <div className="pt-4 pb-6 text-center">
+          <button
+            onClick={() => navigate(`/order/${slug}`)}
+            className="flex items-center gap-2 text-white/80 hover:text-white pt-4 text-sm font-medium transition-colors"
+          >
+            <ArrowLeft size={16} /> Back to menu
+          </button>
+          <div className="pt-2 pb-6 text-center">
             <div className="relative inline-flex">
               <div className="w-24 h-24 rounded-full bg-white/20 flex items-center justify-center mb-4">
                 {isCancelled

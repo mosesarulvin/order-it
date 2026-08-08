@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Store, Phone, DollarSign, Globe, Clock, Tag, Star, Zap, Palette, Image as ImageIcon, Upload, Trash2, CheckCircle2 } from 'lucide-react'
+import { Store, Phone, DollarSign, Globe, Clock, Tag, Star, Zap, Palette, Image as ImageIcon, Upload, Trash2, CheckCircle2, Wallet, Banknote } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/Button'
@@ -20,6 +20,8 @@ const schema = z.object({
   is_open: z.boolean(),
   coupons_enabled: z.boolean(),
   reviews_enabled: z.boolean(),
+  accepts_upi: z.boolean(),
+  accepts_cash: z.boolean(),
   auto_schedule_enabled: z.boolean(),
   auto_open_time: z.string().optional(),
   auto_close_time: z.string().optional(),
@@ -46,6 +48,8 @@ export default function SettingsPage() {
       is_open: shop?.is_open ?? true,
       coupons_enabled: shop?.coupons_enabled ?? true,
       reviews_enabled: shop?.reviews_enabled ?? true,
+      accepts_upi: shop?.accepts_upi ?? true,
+      accepts_cash: shop?.accepts_cash ?? true,
       auto_schedule_enabled: shop?.auto_schedule_enabled ?? false,
       auto_open_time: shop?.auto_open_time || '',
       auto_close_time: shop?.auto_close_time || '',
@@ -78,6 +82,8 @@ export default function SettingsPage() {
       setValue('is_open', shop.is_open)
       setValue('coupons_enabled', shop.coupons_enabled ?? true)
       setValue('reviews_enabled', shop.reviews_enabled ?? true)
+      setValue('accepts_upi', shop.accepts_upi ?? true)
+      setValue('accepts_cash', shop.accepts_cash ?? true)
       setValue('auto_schedule_enabled', shop.auto_schedule_enabled ?? false)
       setValue('auto_open_time', shop.auto_open_time || '')
       setValue('auto_close_time', shop.auto_close_time || '')
@@ -159,7 +165,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="max-w-2xl space-y-6">
+    <div className="max-w-4xl mx-auto space-y-6">
       <div>
         <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Settings</h2>
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Manage your shop profile and preferences</p>
@@ -390,6 +396,35 @@ export default function SettingsPage() {
               <Toggle
                 checked={watch('reviews_enabled')}
                 onChange={(v) => setValue('reviews_enabled', v)}
+                label=""
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Payment Methods */}
+        <Card>
+          <CardContent className="p-5 space-y-4">
+            <h3 className="font-semibold text-gray-900 dark:text-white">Payment methods</h3>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-800 dark:text-gray-200 flex items-center gap-1.5"><Wallet size={14} /> Pay Online</p>
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Accept UPI / Card payments online</p>
+              </div>
+              <Toggle
+                checked={watch('accepts_upi')}
+                onChange={(v) => setValue('accepts_upi', v)}
+                label=""
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-800 dark:text-gray-200 flex items-center gap-1.5"><Banknote size={14} /> Pay at Counter</p>
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Accept Cash or UPI QR at the counter</p>
+              </div>
+              <Toggle
+                checked={watch('accepts_cash')}
+                onChange={(v) => setValue('accepts_cash', v)}
                 label=""
               />
             </div>

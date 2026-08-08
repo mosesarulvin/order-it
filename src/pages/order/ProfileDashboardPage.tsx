@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Tag, ShoppingBag, Gift, User, UtensilsCrossed, ChevronRight } from 'lucide-react'
+import { ArrowLeft, Tag, ShoppingBag, Gift, User, UtensilsCrossed, ChevronRight, LogOut } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import type { CustomerProfile, ProfileCoupon, Order } from '@/types'
@@ -54,6 +54,12 @@ export default function ProfileDashboardPage() {
     setLoading(false)
   }
 
+  const handleSignOut = () => {
+    localStorage.removeItem(`profile-${slug}`)
+    toast.success('Signed out of profile')
+    navigate(`/order/${slug}`)
+  }
+
   const unusedCoupons = coupons.filter((c) => !c.used_at)
   const usedCoupons = coupons.filter((c) => !!c.used_at)
 
@@ -68,7 +74,7 @@ export default function ProfileDashboardPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-slate-950">
         <div className="w-8 h-8 border-2 border-brand-primary border-t-transparent rounded-full animate-spin" />
       </div>
     )
@@ -77,13 +83,22 @@ export default function ProfileDashboardPage() {
   if (!profile) return null
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-slate-950 transition-colors">
       {/* Header */}
       <div className="gradient-brand-header text-white px-4 pt-safe pb-10">
         <div className="max-w-lg mx-auto pt-4">
-          <button onClick={() => navigate(`/order/${slug}`)} className="flex items-center gap-2 text-white/80 hover:text-white mb-4 text-sm">
-            <ArrowLeft size={16} /> Back to menu
-          </button>
+          <div className="flex items-center justify-between mb-4">
+            <button onClick={() => navigate(`/order/${slug}`)} className="flex items-center gap-2 text-white/80 hover:text-white text-sm">
+              <ArrowLeft size={16} /> Back to menu
+            </button>
+            <button
+              onClick={handleSignOut}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/20 hover:bg-white/30 text-white text-xs font-semibold backdrop-blur-sm transition-all active:scale-95 shadow-sm"
+              title="Sign out of profile"
+            >
+              <LogOut size={14} /> Sign out
+            </button>
+          </div>
           <div className="flex items-center gap-3">
             <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center">
               <User size={28} className="text-white" />
@@ -115,12 +130,12 @@ export default function ProfileDashboardPage() {
 
       <div className="max-w-lg mx-auto px-4 -mt-4 pb-32 space-y-4">
         {/* Tabs */}
-        <div className="bg-white rounded-2xl border border-gray-100 flex overflow-hidden shadow-sm">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 flex overflow-hidden shadow-sm">
           {(['coupons', 'history'] as const).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
-              className={`flex-1 py-3 text-sm font-semibold capitalize transition-colors ${tab === t ? 'bg-brand-primary text-white' : 'text-gray-500 hover:bg-gray-50'}`}
+              className={`flex-1 py-3 text-sm font-semibold capitalize transition-colors ${tab === t ? 'bg-brand-primary text-white' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-slate-800'}`}
             >
               {t === 'coupons' ? `🎟 Coupons (${unusedCoupons.length})` : `📋 Order History`}
             </button>
@@ -130,24 +145,24 @@ export default function ProfileDashboardPage() {
         {tab === 'coupons' && (
           <div className="space-y-3">
             {unusedCoupons.length === 0 && usedCoupons.length === 0 && (
-              <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center">
-                <Gift size={32} className="text-gray-200 mx-auto mb-2" />
-                <p className="text-gray-500 font-medium text-sm">No coupons yet</p>
-                <p className="text-gray-400 text-xs mt-1">The shop will send you offers here</p>
+              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-8 text-center">
+                <Gift size={32} className="text-gray-200 dark:text-slate-700 mx-auto mb-2" />
+                <p className="text-gray-500 dark:text-gray-400 font-medium text-sm">No coupons yet</p>
+                <p className="text-gray-400 dark:text-gray-500 text-xs mt-1">The shop will send you offers here</p>
               </div>
             )}
 
             {unusedCoupons.length > 0 && (
               <>
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-1">Available to use</p>
+                <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-1">Available to use</p>
                 {unusedCoupons.map((c) => (
-                  <div key={c.id} className="bg-white rounded-2xl border-2 border-dashed border-brand-primary-light p-4 flex items-center gap-3">
-                    <div className="w-10 h-10 bg-brand-primary-lighter rounded-xl flex items-center justify-center flex-shrink-0">
+                  <div key={c.id} className="bg-white dark:bg-slate-900 rounded-2xl border-2 border-dashed border-brand-primary-light dark:border-brand-primary/40 p-4 flex items-center gap-3">
+                    <div className="w-10 h-10 bg-brand-primary-lighter dark:bg-brand-primary/20 rounded-xl flex items-center justify-center flex-shrink-0">
                       <Tag size={18} className="text-brand-primary" />
                     </div>
                     <div className="flex-1">
-                      <p className="font-bold text-gray-900 font-mono tracking-wide">{c.coupon_code}</p>
-                      <p className="text-sm text-gray-500">{c.label}</p>
+                      <p className="font-bold text-gray-900 dark:text-white font-mono tracking-wide">{c.coupon_code}</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">{c.label}</p>
                     </div>
                     <button
                       onClick={() => {
@@ -167,15 +182,15 @@ export default function ProfileDashboardPage() {
 
             {usedCoupons.length > 0 && (
               <>
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-1 mt-2">Used</p>
+                <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-1 mt-2">Used</p>
                 {usedCoupons.map((c) => (
-                  <div key={c.id} className="bg-white rounded-2xl border border-gray-100 p-4 flex items-center gap-3 opacity-60">
-                    <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                      <Tag size={18} className="text-gray-400" />
+                  <div key={c.id} className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-4 flex items-center gap-3 opacity-60">
+                    <div className="w-10 h-10 bg-gray-100 dark:bg-slate-800 rounded-xl flex items-center justify-center flex-shrink-0">
+                      <Tag size={18} className="text-gray-400 dark:text-gray-500" />
                     </div>
                     <div className="flex-1">
-                      <p className="font-bold text-gray-500 font-mono tracking-wide line-through">{c.coupon_code}</p>
-                      <p className="text-xs text-gray-400">{c.label} · Used {c.used_at ? formatDate(c.used_at) : ''}</p>
+                      <p className="font-bold text-gray-500 dark:text-gray-400 font-mono tracking-wide line-through">{c.coupon_code}</p>
+                      <p className="text-xs text-gray-400 dark:text-gray-500">{c.label} · Used {c.used_at ? formatDate(c.used_at) : ''}</p>
                     </div>
                   </div>
                 ))}
@@ -187,30 +202,30 @@ export default function ProfileDashboardPage() {
         {tab === 'history' && (
           <div className="space-y-3">
             {orders.length === 0 ? (
-              <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center">
-                <ShoppingBag size={32} className="text-gray-200 mx-auto mb-2" />
-                <p className="text-gray-500 font-medium text-sm">No orders yet</p>
-                <p className="text-gray-400 text-xs mt-1">Your orders will appear here</p>
+              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-8 text-center">
+                <ShoppingBag size={32} className="text-gray-200 dark:text-slate-700 mx-auto mb-2" />
+                <p className="text-gray-500 dark:text-gray-400 font-medium text-sm">No orders yet</p>
+                <p className="text-gray-400 dark:text-gray-500 text-xs mt-1">Your orders will appear here</p>
               </div>
             ) : (
               orders.map((order) => (
                 <div
                   key={order.id}
                   onClick={() => navigate(`/order/${slug}/success/${order.id}`)}
-                  className="bg-white rounded-2xl border border-gray-100 p-4 cursor-pointer hover:border-brand-primary-light transition-colors"
+                  className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-4 cursor-pointer hover:border-brand-primary-light dark:hover:border-brand-primary/50 transition-colors"
                 >
                   <div className="flex items-center justify-between mb-2">
-                    <span className="font-semibold text-gray-900 text-sm font-mono">{order.order_number}</span>
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium capitalize ${statusColors[order.status] ?? 'bg-gray-100 text-gray-500'}`}>
+                    <span className="font-semibold text-gray-900 dark:text-white text-sm font-mono">{order.order_number}</span>
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium capitalize ${statusColors[order.status] ?? 'bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-gray-400'}`}>
                       {order.status}
                     </span>
                   </div>
-                  <div className="flex items-center justify-between text-xs text-gray-400">
+                  <div className="flex items-center justify-between text-xs text-gray-400 dark:text-gray-500">
                     <span>{formatDate(order.created_at)}</span>
-                    <span className="font-semibold text-gray-900">{formatCurrency(order.total)}</span>
+                    <span className="font-semibold text-gray-900 dark:text-white">{formatCurrency(order.total)}</span>
                   </div>
                   {order.items && order.items.length > 0 && (
-                    <p className="text-xs text-gray-400 mt-1 truncate">
+                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 truncate">
                       {order.items.map((i) => `${i.name} ×${i.quantity}`).join(', ')}
                     </p>
                   )}
@@ -229,7 +244,7 @@ export default function ProfileDashboardPage() {
         <div className="max-w-lg mx-auto">
           <button
             onClick={() => navigate(`/order/${slug}`)}
-            className="w-full bg-brand-primary text-white rounded-2xl p-4 flex items-center justify-between shadow-xl shadow-brand-primary hover:opacity-90 active:scale-[0.98] transition-all"
+            className="w-full bg-brand-primary text-white rounded-2xl p-4 flex items-center justify-between shadow-xl shadow-brand-primary/30 hover:opacity-90 active:scale-[0.98] transition-all"
           >
             <div className="flex items-center gap-3">
               <span className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">

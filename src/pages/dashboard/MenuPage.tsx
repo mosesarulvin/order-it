@@ -30,6 +30,7 @@ const itemSchema = z.object({
   track_stock: z.boolean().optional(),
   stock_quantity: z.number().int().min(0).optional(),
   low_stock_threshold: z.number().int().min(0).optional(),
+  calories: z.number().int().min(0).optional(),
 })
 
 type CategoryForm = z.infer<typeof categorySchema>
@@ -108,7 +109,7 @@ export default function MenuPage() {
 
   // ── ITEM ACTIONS ─────────────────────────────────────────────────────────────
   const openAddItem = (categoryId: string) => {
-    itemForm.reset({ name: '', description: '', price: 0, is_popular: false, is_instant: false, track_stock: false, stock_quantity: 0, low_stock_threshold: 5 })
+    itemForm.reset({ name: '', description: '', price: 0, calories: undefined, is_popular: false, is_instant: false, track_stock: false, stock_quantity: 0, low_stock_threshold: 5 })
     setCustomGroups([])
     setItemModal({ open: true, categoryId })
   }
@@ -118,6 +119,7 @@ export default function MenuPage() {
       name: item.name,
       description: item.description || '',
       price: item.price,
+      calories: item.calories ?? undefined,
       is_popular: item.is_popular,
       is_instant: item.is_instant,
       track_stock: item.stock_quantity !== null,
@@ -175,6 +177,7 @@ export default function MenuPage() {
       name: data.name,
       description: data.description || null,
       price: data.price,
+      calories: data.calories ?? null,
       is_popular: data.is_popular || false,
       is_instant: data.is_instant || false,
       stock_quantity: data.track_stock ? (data.stock_quantity ?? 0) : null,
@@ -224,7 +227,7 @@ export default function MenuPage() {
   }
 
   return (
-    <div className="max-w-4xl space-y-6">
+    <div className="max-w-4xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Menu</h2>
@@ -391,7 +394,7 @@ export default function MenuPage() {
                 <img
                   src={imagePreview || itemModal.editing?.image_url || ''}
                   alt="preview"
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-contain p-2"
                 />
               ) : (
                 <div className="h-full flex flex-col items-center justify-center gap-2 text-gray-400 group-hover:text-orange-400 transition-colors">
@@ -412,16 +415,26 @@ export default function MenuPage() {
           <Textarea
             label="Description (optional)"
             placeholder="Brief description of the item"
+            rows={4}
             {...itemForm.register('description')}
           />
-          <Input
-            label="Price (₹)"
-            type="number"
-            step="0.5"
-            placeholder="0"
-            error={itemForm.formState.errors.price?.message}
-            {...itemForm.register('price', { valueAsNumber: true })}
-          />
+          <div className="grid grid-cols-2 gap-3">
+            <Input
+              label="Price (₹)"
+              type="number"
+              step="0.5"
+              placeholder="0"
+              error={itemForm.formState.errors.price?.message}
+              {...itemForm.register('price', { valueAsNumber: true })}
+            />
+            <Input
+              label="Calories (kcal) (optional)"
+              type="number"
+              placeholder="e.g. 250"
+              error={itemForm.formState.errors.calories?.message}
+              {...itemForm.register('calories', { valueAsNumber: true, setValueAs: v => v === "" ? undefined : parseInt(v, 10) })}
+            />
+          </div>
           <Toggle
             checked={itemForm.watch('is_popular') || false}
             onChange={(v) => itemForm.setValue('is_popular', v)}
