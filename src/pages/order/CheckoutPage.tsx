@@ -47,14 +47,14 @@ export default function CheckoutPage() {
     if (!slug) return
     supabase.from('shops').select('id, tax_percent, is_open, coupons_enabled, accepts_upi, accepts_cash').eq('slug', slug).single()
       .then(({ data }) => {
-        if (data) { 
+        if (data) {
           setShopId(data.id)
           setTaxPercent(data.tax_percent)
           setShopOpen(data.is_open)
           setCouponsEnabled(data.coupons_enabled ?? true)
           setAcceptsUpi(data.accepts_upi ?? true)
           setAcceptsCash(data.accepts_cash ?? true)
-          
+
           if (data.accepts_upi && !data.accepts_cash) setPaymentMethod('upi')
           else if (!data.accepts_upi && data.accepts_cash) setPaymentMethod('cash')
         }
@@ -480,7 +480,7 @@ export default function CheckoutPage() {
             />
           )}
           {/* Anonymous toggle */}
-          <button
+          {/* <button
             type="button"
             onClick={() => setIsAnonymous((v) => !v)}
             className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl border transition-all ${isAnonymous ? 'border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20' : 'border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 hover:bg-gray-100 dark:hover:bg-slate-700'
@@ -500,7 +500,7 @@ export default function CheckoutPage() {
             <p className="text-xs text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded-xl px-3 py-2">
               🔒 Your phone number won't be shared with the shop.
             </p>
-          )}
+          )} */}
           <Textarea
             label="Special instructions (optional)"
             placeholder="e.g. Less sugar, extra shot..."
@@ -517,8 +517,8 @@ export default function CheckoutPage() {
                 <button
                   onClick={() => setPaymentMethod('upi')}
                   className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${paymentMethod === 'upi'
-                      ? 'border-brand-primary bg-brand-primary-lighter dark:bg-brand-primary-shadow'
-                      : 'border-gray-200 dark:border-slate-700 hover:border-gray-300 dark:hover:border-slate-600'
+                    ? 'border-brand-primary bg-brand-primary-lighter dark:bg-brand-primary-shadow'
+                    : 'border-gray-200 dark:border-slate-700 hover:border-gray-300 dark:hover:border-slate-600'
                     }`}
                 >
                   <Wallet size={24} className={paymentMethod === 'upi' ? 'text-brand-primary' : 'text-gray-400 dark:text-gray-500'} />
@@ -532,8 +532,8 @@ export default function CheckoutPage() {
                 <button
                   onClick={() => setPaymentMethod('cash')}
                   className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${paymentMethod === 'cash'
-                      ? 'border-brand-primary bg-brand-primary-lighter dark:bg-brand-primary-shadow'
-                      : 'border-gray-200 dark:border-slate-700 hover:border-gray-300 dark:hover:border-slate-600'
+                    ? 'border-brand-primary bg-brand-primary-lighter dark:bg-brand-primary-shadow'
+                    : 'border-gray-200 dark:border-slate-700 hover:border-gray-300 dark:hover:border-slate-600'
                     }`}
                 >
                   <Banknote size={24} className={paymentMethod === 'cash' ? 'text-brand-primary' : 'text-gray-400 dark:text-gray-500'} />
