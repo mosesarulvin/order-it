@@ -167,7 +167,7 @@ export default function OrderMenuPage() {
     setActiveCategory(categoryId)
     const el = categoryRefs.current[categoryId]
     if (el) {
-      const offset = 60 // Account for sticky header
+      const offset = 90 // Account for sticky header (h-12 buttons + py-3 padding + spacing)
       const top = el.getBoundingClientRect().top + window.scrollY - offset
       window.scrollTo({ top, behavior: 'smooth' })
     }
@@ -239,14 +239,13 @@ export default function OrderMenuPage() {
     <div className={`min-h-screen bg-gray-50 dark:bg-slate-950 transition-colors ${totalItems > 0 ? 'pb-28' : 'pb-10'}`}>
       {/* Header */}
       <div
-        className={`relative text-white pt-safe px-4 pb-6 transition-all duration-300 bg-cover bg-center ${
-          !shop?.cover_image_url ? 'gradient-brand-header' : ''
-        }`}
+        className={`relative text-white pt-safe px-4 pb-6 transition-all duration-300 bg-cover bg-center ${!shop?.cover_image_url ? 'gradient-brand-header' : ''
+          }`}
         style={
           shop?.cover_image_url
             ? {
-                backgroundImage: `linear-gradient(to bottom, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.85)), url("${shop.cover_image_url}")`,
-              }
+              backgroundImage: `linear-gradient(to bottom, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.85)), url("${shop.cover_image_url}")`,
+            }
             : undefined
         }
       >
@@ -306,21 +305,19 @@ export default function OrderMenuPage() {
           <div className="flex bg-white dark:bg-slate-900 p-1 rounded-xl mt-3 shadow-sm border border-transparent dark:border-slate-800">
             <button
               onClick={() => setOrderType('dine_in')}
-              className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${
-                orderType === 'dine_in' 
-                  ? 'bg-brand-primary text-white shadow-md shadow-brand-primary/20' 
+              className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${orderType === 'dine_in'
+                  ? 'bg-brand-primary text-white shadow-md shadow-brand-primary/20'
                   : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-              }`}
+                }`}
             >
               Dine-in
             </button>
             <button
               onClick={() => setOrderType('takeaway')}
-              className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${
-                orderType === 'takeaway' 
-                  ? 'bg-brand-primary text-white shadow-md shadow-brand-primary/20' 
+              className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${orderType === 'takeaway'
+                  ? 'bg-brand-primary text-white shadow-md shadow-brand-primary/20'
                   : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-              }`}
+                }`}
             >
               Takeaway
             </button>
@@ -330,65 +327,64 @@ export default function OrderMenuPage() {
 
       {/* Category pills — hidden while searching or when grab-and-go-only mode */}
       {!search && !grabAndGoOnly && (
-      <div className="sticky top-0 z-10 bg-white dark:bg-slate-950 border-b border-gray-100 dark:border-slate-800 shadow-sm">
-        <div className="max-w-lg mx-auto relative flex items-center">
-          {canScrollLeft && (
-            <button
-              onClick={() => scrollCategories('left')}
-              className="absolute left-1 z-20 w-7 h-7 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-full shadow-md text-gray-700 dark:text-gray-200 flex items-center justify-center hover:scale-105 active:scale-95 transition-all"
-              aria-label="Scroll categories left"
-            >
-              <ChevronLeft size={16} />
-            </button>
-          )}
+        <div className="sticky top-0 z-10 bg-white dark:bg-slate-950 border-b border-gray-100 dark:border-slate-800 shadow-sm">
+          <div className="max-w-lg mx-auto relative flex items-center">
+            {canScrollLeft && (
+              <button
+                onClick={() => scrollCategories('left')}
+                className="absolute left-1 z-20 w-7 h-7 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-full shadow-md text-gray-700 dark:text-gray-200 flex items-center justify-center hover:scale-105 active:scale-95 transition-all"
+                aria-label="Scroll categories left"
+              >
+                <ChevronLeft size={16} />
+              </button>
+            )}
 
-          <div
-            ref={categoryNavRef}
-            className="flex gap-2 overflow-x-auto px-4 py-3 no-scrollbar w-full"
-            style={{ scrollbarWidth: 'none' }}
-          >
-            {loading
-              ? Array.from({ length: 4 }).map((_, i) => (
+            <div
+              ref={categoryNavRef}
+              className="flex gap-2 overflow-x-auto px-4 py-3 no-scrollbar w-full"
+              style={{ scrollbarWidth: 'none' }}
+            >
+              {loading
+                ? Array.from({ length: 4 }).map((_, i) => (
                   <div key={i} className="h-12 w-28 bg-gray-100 dark:bg-slate-800 rounded-full animate-pulse flex-shrink-0" />
                 ))
-              : (
-                <>
-                  {categories.filter(cat => filteredItems(cat.id).length > 0).map((cat) => {
-                    const categoryImageItem = items.find((i) => i.category_id === cat.id && i.is_category_image && i.image_url)
-                    const hasImage = !!(categoryImageItem && categoryImageItem.image_url)
+                : (
+                  <>
+                    {categories.filter(cat => filteredItems(cat.id).length > 0).map((cat) => {
+                      const categoryImageItem = items.find((i) => i.category_id === cat.id && i.is_category_image && i.image_url)
+                      const hasImage = !!(categoryImageItem && categoryImageItem.image_url)
 
-                    return (
-                      <button
-                        key={cat.id}
-                        onClick={() => scrollToCategory(cat.id)}
-                        className={`flex-shrink-0 flex items-center gap-2.5 h-12 ${hasImage ? 'pl-1 pr-5' : 'px-5'} rounded-full text-sm font-medium transition-all ${
-                          activeCategory === cat.id
-                            ? 'bg-brand-primary text-white shadow-sm shadow-brand-primary'
-                            : 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-700'
-                        }`}
-                      >
-                        {hasImage && (
-                          <img src={categoryImageItem.image_url!} alt="" className="w-10 h-10 rounded-full object-cover border border-white/20 shadow-sm" />
-                        )}
-                        {cat.name}
-                      </button>
-                    )
-                  })}
-                </>
-              )}
+                      return (
+                        <button
+                          key={cat.id}
+                          onClick={() => scrollToCategory(cat.id)}
+                          className={`flex-shrink-0 flex items-center gap-2.5 h-12 ${hasImage ? 'pl-1 pr-5' : 'px-5'} rounded-full text-sm font-medium transition-all ${activeCategory === cat.id
+                              ? 'bg-brand-primary text-white shadow-sm shadow-brand-primary'
+                              : 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-700'
+                            }`}
+                        >
+                          {hasImage && (
+                            <img src={categoryImageItem.image_url!} alt="" className="w-10 h-10 rounded-full object-cover border border-white/20 shadow-sm" />
+                          )}
+                          {cat.name}
+                        </button>
+                      )
+                    })}
+                  </>
+                )}
+            </div>
+
+            {canScrollRight && (
+              <button
+                onClick={() => scrollCategories('right')}
+                className="absolute right-1 z-20 w-7 h-7 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-full shadow-md text-gray-700 dark:text-gray-200 flex items-center justify-center hover:scale-105 active:scale-95 transition-all"
+                aria-label="Scroll categories right"
+              >
+                <ChevronRight size={16} />
+              </button>
+            )}
           </div>
-
-          {canScrollRight && (
-            <button
-              onClick={() => scrollCategories('right')}
-              className="absolute right-1 z-20 w-7 h-7 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-full shadow-md text-gray-700 dark:text-gray-200 flex items-center justify-center hover:scale-105 active:scale-95 transition-all"
-              aria-label="Scroll categories right"
-            >
-              <ChevronRight size={16} />
-            </button>
-          )}
         </div>
-      </div>
       )}
 
       {/* Promotional Carousel */}
@@ -401,8 +397,8 @@ export default function OrderMenuPage() {
           <div className="flex gap-4 overflow-x-auto no-scrollbar pb-4 px-4 snap-x snap-mandatory">
             {items.filter(i => i.is_special).map((item) => (
               <div key={`promo-${item.id}`} className="snap-center shrink-0 w-64 bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col">
-                <div 
-                  className="relative cursor-pointer" 
+                <div
+                  className="relative cursor-pointer"
                   onClick={() => {
                     setViewingItem(item)
                     setCustomSelections({})
@@ -447,7 +443,7 @@ export default function OrderMenuPage() {
                       ))}
                     </div>
                   )}
-                  
+
                   <div className="mt-auto pt-2">
                     {(() => {
                       const qty = getItemQuantity(item.id)
@@ -576,7 +572,7 @@ export default function OrderMenuPage() {
                                 )}
                               </div>
                               {item.description && (
-                                <p 
+                                <p
                                   onClick={() => setViewingItem(item)}
                                   className="text-xs text-gray-400 mt-1 leading-relaxed line-clamp-2 cursor-pointer hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
                                 >
@@ -648,8 +644,8 @@ export default function OrderMenuPage() {
             {viewingItem.image_url ? (
               <div className="relative h-64 w-full bg-gray-50 dark:bg-slate-950 flex items-center justify-center">
                 <img src={viewingItem.image_url} alt={viewingItem.name} loading="lazy" className="w-full h-full object-contain p-2" />
-                <button 
-                  onClick={() => setViewingItem(null)} 
+                <button
+                  onClick={() => setViewingItem(null)}
                   className="absolute top-3 right-3 w-8 h-8 bg-black/50 backdrop-blur-md rounded-full flex items-center justify-center text-white hover:bg-black/70 transition-colors"
                 >
                   <XIcon size={18} />
@@ -662,7 +658,7 @@ export default function OrderMenuPage() {
                 </button>
               </div>
             )}
-            
+
             <div className="p-5">
               <div className="flex items-start justify-between gap-3 mb-2">
                 <div>
@@ -677,7 +673,7 @@ export default function OrderMenuPage() {
                   {formatCurrency(viewingItem.price)}
                 </span>
               </div>
-              
+
               {viewingItem.tags && viewingItem.tags.length > 0 && (
                 <div className="flex flex-wrap gap-1 mb-4">
                   {viewingItem.tags.map((tag, idx) => (
@@ -691,7 +687,7 @@ export default function OrderMenuPage() {
               <div className="max-h-[40vh] overflow-y-auto no-scrollbar mb-5">
                 <p className="text-sm text-gray-600 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">{viewingItem.description}</p>
               </div>
-              
+
               <button
                 onClick={() => {
                   setViewingItem(null)
@@ -714,7 +710,7 @@ export default function OrderMenuPage() {
               <h3 className="font-bold text-gray-900 dark:text-white text-base">{customizeItem.name}</h3>
               <button onClick={() => setCustomizeItem(null)} className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-400"><XIcon size={20} /></button>
             </div>
-            
+
             {customizeItem.variants && customizeItem.variants.length > 0 && (
               <div className="space-y-2 pb-2">
                 <div className="flex items-center gap-2">
@@ -727,13 +723,12 @@ export default function OrderMenuPage() {
                       key={v.id}
                       onClick={() => !v.is_out_of_stock && setSelectedVariantId(v.id)}
                       disabled={v.is_out_of_stock}
-                      className={`px-3 py-2 rounded-xl text-sm font-medium border flex items-center justify-between transition-all ${
-                        v.is_out_of_stock 
+                      className={`px-3 py-2 rounded-xl text-sm font-medium border flex items-center justify-between transition-all ${v.is_out_of_stock
                           ? 'bg-gray-50 dark:bg-slate-800 text-gray-400 dark:text-gray-500 border-gray-100 dark:border-slate-700 cursor-not-allowed opacity-60'
-                          : selectedVariantId === v.id 
-                            ? 'bg-brand-primary text-white border-brand-primary' 
+                          : selectedVariantId === v.id
+                            ? 'bg-brand-primary text-white border-brand-primary'
                             : 'bg-white dark:bg-slate-900 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-slate-700 hover:border-brand-primary-light'
-                      }`}
+                        }`}
                     >
                       <span>{v.size} {v.unit || customizeItem.unit || ''}</span>
                       <div className="flex items-center gap-2">
@@ -745,7 +740,7 @@ export default function OrderMenuPage() {
                 </div>
               </div>
             )}
-            
+
             {(customizeItem.customization_groups ?? []).map((group) => (
               <div key={group.name} className="space-y-2">
                 <div className="flex items-center gap-2">
