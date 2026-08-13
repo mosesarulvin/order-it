@@ -51,7 +51,7 @@ export function Modal({ open, onClose, title, children, size = 'md', className }
       />
       <div
         className={cn(
-          'relative w-full bg-white dark:bg-slate-900 rounded-2xl shadow-2xl',
+          'relative w-full bg-white dark:bg-slate-900 rounded-2xl shadow-2xl flex flex-col max-h-[90vh]',
           sizes[size],
           className
         )}
@@ -68,7 +68,7 @@ export function Modal({ open, onClose, title, children, size = 'md', className }
             </button>
           </div>
         )}
-        <div className="p-6">{children}</div>
+        <div className="p-6 overflow-y-auto">{children}</div>
       </div>
     </div>
   )

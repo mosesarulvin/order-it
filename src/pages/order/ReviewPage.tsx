@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Star, ArrowLeft, MessageSquare } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
@@ -14,6 +14,30 @@ export default function ReviewPage() {
   const [comment, setComment] = useState('')
   const [loading, setLoading] = useState(false)
   const [submitted, setSubmitted] = useState(false)
+  const [order, setOrder] = useState<{ id: string, shop_id: string, order_number: string, customer_name: string } | null>(null)
+  const [orderItems, setOrderItems] = useState<{ id: string, menu_item_id: string, name: string }[]>([])
+  const [itemRatings, setItemRatings] = useState<Record<string, number>>({})
+
+  useEffect(() => {
+    if (!orderId) return
+    supabase.from('orders').select('id, shop_id, order_number, customer_name').eq('id', orderId).single()
+      .then(({ data }) => {
+        if (data) {
+          setOrder(data)
+          if (data.customer_name && data.customer_name !== 'Guest') {
+            setName(data.customer_name)
+          }
+        }
+      })
+
+    supabase.from('order_items').select('id, menu_item_id, name').eq('order_id', orderId)
+      .then(({ data }) => {
+        if (data) {
+          const uniqueItems = Array.from(new Map(data.map(item => [item.menu_item_id, item])).values())
+          setOrderItems(uniqueItems)
+        }
+      })
+  }, [orderId])
 
   const ratingLabels = ['', 'Poor', 'Fair', 'Good', 'Great', 'Excellent!']
 
@@ -21,26 +45,32 @@ export default function ReviewPage() {
     if (rating === 0) { toast.error('Please select a rating'); return }
     setLoading(true)
 
-    // Fetch order to get shop_id and order_number
-    const { data: order, error: oErr } = await supabase
-      .from('orders')
-      .select('shop_id, order_number')
-      .eq('id', orderId!)
-      .single()
+    if (!order) { toast.error('Order not found.'); setLoading(false); return }
 
-    if (oErr || !order) { toast.error('Could not submit review. Try again.'); setLoading(false); return }
-
-    const { error } = await supabase.from('reviews').insert({
+    const { error, data: reviewData } = await supabase.from('reviews').insert({
       shop_id: order.shop_id,
       order_id: orderId,
       order_number: order.order_number,
       customer_name: name.trim() || 'Guest',
       rating,
       comment: comment.trim() || null,
-    })
+    }).select().single()
+
+    if (error) { toast.error(error.message); setLoading(false); return }
+
+    const itemReviewEntries = Object.entries(itemRatings).map(([menuItemId, itemRating]) => ({
+      shop_id: order.shop_id,
+      order_id: orderId,
+      review_id: reviewData.id,
+      menu_item_id: menuItemId,
+      rating: itemRating
+    }))
+
+    if (itemReviewEntries.length > 0) {
+      await supabase.from('item_reviews').insert(itemReviewEntries)
+    }
 
     setLoading(false)
-    if (error) { toast.error(error.message); return }
 
     // Mark as reviewed in localStorage so prompt doesn't show again
     localStorage.setItem(`review-${orderId}`, '1')
@@ -105,15 +135,44 @@ export default function ReviewPage() {
           )}
         </div>
 
+        {/* Item Ratings */}
+        {orderItems.length > 0 && (
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-5 space-y-4 shadow-sm">
+            <h3 className="font-semibold text-gray-900 dark:text-white text-sm">Rate the items you ordered (optional)</h3>
+            <div className="divide-y divide-gray-50 dark:divide-slate-800">
+              {orderItems.map((item) => (
+                <div key={item.menu_item_id} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{item.name}</span>
+                  <div className="flex gap-1.5">
+                    {[1, 2, 3, 4, 5].map((s) => (
+                      <button
+                        key={s}
+                        onClick={() => setItemRatings(prev => ({ ...prev, [item.menu_item_id]: s }))}
+                        className="transition-transform hover:scale-110 active:scale-95"
+                      >
+                        <Star
+                          size={24}
+                          className={`transition-colors ${s <= (itemRatings[item.menu_item_id] || 0) ? 'text-amber-400 fill-amber-400' : 'text-gray-200 dark:text-slate-700 fill-gray-200 dark:fill-slate-700'}`}
+                        />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Name */}
         <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-4 space-y-3 shadow-sm">
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Your name (optional)</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Your name</label>
           <input
             type="text"
             placeholder="e.g. Arjun"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="w-full h-10 px-3 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 text-sm outline-none focus-brand transition-colors"
+            disabled
+            className="w-full h-10 px-3 rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 text-gray-500 dark:text-gray-400 placeholder:text-gray-400 dark:placeholder:text-gray-500 text-sm outline-none cursor-not-allowed"
           />
         </div>
 

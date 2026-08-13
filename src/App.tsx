@@ -30,6 +30,7 @@ const CheckoutPage = lazy(() => import('@/pages/order/CheckoutPage'))
 const OrderSuccessPage = lazy(() => import('@/pages/order/OrderSuccessPage'))
 const ReviewPage = lazy(() => import('@/pages/order/ReviewPage'))
 const ProfilePage = lazy(() => import('@/pages/order/ProfilePage'))
+const ProfileLandingPage = lazy(() => import('@/pages/order/ProfileLandingPage'))
 const ProfileDashboardPage = lazy(() => import('@/pages/order/ProfileDashboardPage'))
 const NotFoundPage = lazy(() => import('@/pages/NotFoundPage'))
 
@@ -99,7 +100,8 @@ export default function App() {
           <Route path="/order/:slug/checkout" element={<CheckoutPage />} />
           <Route path="/order/:slug/success/:orderId" element={<OrderSuccessPage />} />
           <Route path="/order/:slug/review/:orderId" element={<ReviewPage />} />
-          <Route path="/order/:slug/profile" element={<ProfilePage />} />
+          <Route path="/order/:slug/profile" element={<ProfileLandingPage />} />
+          <Route path="/order/:slug/profile/new" element={<ProfilePage />} />
           <Route path="/order/:slug/profile/:profileId" element={<ProfileDashboardPage />} />
         </Route>
 

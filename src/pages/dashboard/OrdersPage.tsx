@@ -180,6 +180,9 @@ export default function OrdersPage() {
                       {order.order_source === 'walkin' && (
                         <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-indigo-100 text-indigo-700">Walk-in</span>
                       )}
+                      {order.order_type === 'takeaway' && (
+                        <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400">Takeaway</span>
+                      )}
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${getOrderStatusColor(order.status)}`}>
                         {getOrderStatusLabel(order.status)}
                       </span>
@@ -246,6 +249,11 @@ export default function OrdersPage() {
                 <div className="flex justify-between text-sm text-gray-500">
                   <span>Subtotal</span><span>{formatCurrency(selected.subtotal)}</span>
                 </div>
+                {selected.packing_charge > 0 && (
+                  <div className="flex justify-between text-sm text-gray-500">
+                    <span>Packing Charge</span><span>{formatCurrency(selected.packing_charge)}</span>
+                  </div>
+                )}
                 {selected.tax_amount > 0 && (
                   <div className="flex justify-between text-sm text-gray-500">
                     <span>Tax</span><span>{formatCurrency(selected.tax_amount)}</span>

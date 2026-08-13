@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 export function useShopTheme(slug?: string) {
   const [shopName, setShopName] = useState<string>('')
   const [logoUrl, setLogoUrl] = useState<string | null>(null)
+  const [coverImageUrl, setCoverImageUrl] = useState<string | null>(null)
   const [brandPrimary, setBrandPrimary] = useState<string | null>(null)
   const [brandSecondary, setBrandSecondary] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -17,13 +18,14 @@ export function useShopTheme(slug?: string) {
     const loadTheme = async () => {
       const { data } = await supabase
         .from('shops')
-        .select('name, logo_url, brand_primary, brand_secondary, brand_accent')
+        .select('name, logo_url, cover_image_url, brand_primary, brand_secondary, brand_accent')
         .eq('slug', slug)
         .single()
 
       if (data) {
         setShopName(data.name)
         setLogoUrl(data.logo_url)
+        setCoverImageUrl(data.cover_image_url)
         setBrandPrimary(data.brand_primary)
         setBrandSecondary(data.brand_secondary)
 
@@ -50,5 +52,5 @@ export function useShopTheme(slug?: string) {
     loadTheme()
   }, [slug])
 
-  return { shopName, logoUrl, brandPrimary, brandSecondary, loading }
+  return { shopName, logoUrl, coverImageUrl, brandPrimary, brandSecondary, loading }
 }

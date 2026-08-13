@@ -21,6 +21,7 @@ export default function WalkInPage() {
   const [cart, setCart] = useState<CartEntry[]>([])
   const [customerName, setCustomerName] = useState('')
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash')
+  const [orderType, setOrderType] = useState<'dine_in' | 'takeaway'>('dine_in')
   const [placing, setPlacing] = useState(false)
   const [lastOrder, setLastOrder] = useState<{ orderNumber: string } | null>(null)
 
@@ -67,8 +68,9 @@ export default function WalkInPage() {
   }
 
   const subtotal = cart.reduce((sum, e) => sum + e.item.price * e.quantity, 0)
-  const taxAmount = shop ? Math.round(subtotal * (shop.tax_percent / 100) * 100) / 100 : 0
-  const total = subtotal + taxAmount
+  const packingCharge = orderType === 'takeaway' ? cart.reduce((sum, e) => sum + ((e.item.takeaway_price || 0) * e.quantity), 0) : 0
+  const taxAmount = shop ? Math.round((subtotal + packingCharge) * (shop.tax_percent / 100) * 100) / 100 : 0
+  const total = subtotal + packingCharge + taxAmount
 
   const searchedItems = items.filter(i => !search || i.name.toLowerCase().includes(search.toLowerCase()) || i.description?.toLowerCase().includes(search.toLowerCase()))
 
@@ -116,12 +118,14 @@ export default function WalkInPage() {
           status: orderStatus,
           payment_method: paymentMethod,
           payment_status: 'pending',
+          order_type: orderType,
           is_anonymous: false,
           order_source: 'walkin',
           coupon_code: null,
           discount_amount: 0,
           subtotal,
           tax_amount: taxAmount,
+          packing_charge: packingCharge,
           total,
         })
         .select()
@@ -166,6 +170,7 @@ export default function WalkInPage() {
       setCart([])
       setCustomerName('')
       setPaymentMethod('cash')
+      setOrderType('dine_in')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Something went wrong')
     } finally {
@@ -347,11 +352,15 @@ export default function WalkInPage() {
           {/* Order details + totals */}
           {cart.length > 0 && (
             <div className="border-t border-gray-100 dark:border-slate-800 bg-gray-50/50 dark:bg-slate-900/50 p-4 space-y-3">
-              {/* Totals */}
               <div className="space-y-1">
                 <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
                   <span>Subtotal</span><span>{formatCurrency(subtotal)}</span>
                 </div>
+                {packingCharge > 0 && (
+                  <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
+                    <span>Packing Charge</span><span>{formatCurrency(packingCharge)}</span>
+                  </div>
+                )}
                 {taxAmount > 0 && (
                   <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
                     <span>Tax ({shop?.tax_percent}%)</span><span>{formatCurrency(taxAmount)}</span>
@@ -370,6 +379,21 @@ export default function WalkInPage() {
                 onChange={(e) => setCustomerName(e.target.value)}
                 className="w-full h-9 px-3 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 outline-none focus:border-orange-400 transition-colors"
               />
+
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setOrderType('dine_in')}
+                  className={`flex-1 py-2 rounded-xl text-xs font-semibold capitalize transition-colors border ${orderType === 'dine_in' ? 'bg-orange-500 text-white border-orange-500' : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-slate-700 hover:border-orange-300 dark:hover:border-orange-500/50'}`}
+                >
+                  Dine-in
+                </button>
+                <button
+                  onClick={() => setOrderType('takeaway')}
+                  className={`flex-1 py-2 rounded-xl text-xs font-semibold capitalize transition-colors border ${orderType === 'takeaway' ? 'bg-orange-500 text-white border-orange-500' : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-slate-700 hover:border-orange-300 dark:hover:border-orange-500/50'}`}
+                >
+                  Takeaway
+                </button>
+              </div>
 
               {/* Payment method */}
               <div className="flex gap-2">

@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { ArrowLeft, Minus, Plus, Trash2, User, Phone, Wallet, Banknote, ChevronRight, ShoppingBag, Clock, EyeOff, Tag, X } from 'lucide-react'
+import { ArrowLeft, Minus, Plus, Trash2, User, Phone, Wallet, Banknote, ChevronRight, ShoppingBag, Clock, Tag, X } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { formatCurrency, generateOrderNumber } from '@/lib/utils'
 import { useCartStore } from '@/store/cartStore'
@@ -14,8 +14,6 @@ import toast from 'react-hot-toast'
 
 // Base schema — phone validation added dynamically based on anonymous toggle
 const baseSchema = z.object({
-  customer_name: z.string().min(2, 'Enter your name'),
-  customer_phone: z.string().optional(),
   notes: z.string().max(200, 'Notes must be 200 characters or less').optional(),
 })
 
@@ -32,12 +30,13 @@ export default function CheckoutPage() {
   const [couponsEnabled, setCouponsEnabled] = useState(true)
   const [acceptsUpi, setAcceptsUpi] = useState(true)
   const [acceptsCash, setAcceptsCash] = useState(true)
-  const [isAnonymous, setIsAnonymous] = useState(false)
+  const [isAnonymous] = useState(false)
   const [couponInput, setCouponInput] = useState('')
   const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null)
   const [couponLoading, setCouponLoading] = useState(false)
+  const [profile, setProfile] = useState<{ id: string; name: string; phone: string } | null>(null)
   const orderPlacedRef = useRef(false)
-  const { items, updateQuantityAt, removeItemAt, getTotalPrice, clearCart } = useCartStore()
+  const { items, updateQuantityAt, removeItemAt, getTotalPrice, clearCart, orderType, setOrderType, getPackingCharge } = useCartStore()
 
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(baseSchema),
@@ -60,6 +59,14 @@ export default function CheckoutPage() {
         }
         else { setShopOpen(false) }
       })
+
+    const profileId = localStorage.getItem(`profile-${slug}`)
+    if (profileId) {
+      supabase.from('customer_profiles').select('id, name, phone').eq('id', profileId).single()
+        .then(({ data }) => {
+          if (data) setProfile(data)
+        })
+    }
   }, [slug])
 
   // Auto-apply profile welcome coupon if customer has a profile with an unused coupon
@@ -118,13 +125,14 @@ export default function CheckoutPage() {
   }, [items.length, slug, navigate])
 
   const subtotal = getTotalPrice()
-  const taxAmount = Math.round(subtotal * taxPercent) / 100
+  const packingCharge = getPackingCharge()
+  const taxAmount = Math.round((subtotal + packingCharge) * taxPercent) / 100
   const discountAmount = appliedCoupon
     ? appliedCoupon.type === 'percentage'
-      ? Math.round(subtotal * appliedCoupon.value) / 100
-      : Math.min(appliedCoupon.value, subtotal)
+      ? Math.round((subtotal + packingCharge) * appliedCoupon.value) / 100
+      : Math.min(appliedCoupon.value, subtotal + packingCharge)
     : 0
-  const total = Math.max(0, subtotal + taxAmount - discountAmount)
+  const total = Math.max(0, subtotal + packingCharge + taxAmount - discountAmount)
 
   const applyCoupon = async () => {
     const code = couponInput.trim().toUpperCase()
@@ -163,15 +171,6 @@ export default function CheckoutPage() {
         toast.error(`Coupon requires a minimum order of ${formatCurrency(appliedCoupon.min_order_amount)}`)
         setAppliedCoupon(null)
         setCouponInput('')
-        return
-      }
-    }
-
-    // Phone validation when not anonymous
-    if (!isAnonymous) {
-      const phone = data.customer_phone || ''
-      if (!/^[6-9]\d{9}$/.test(phone)) {
-        toast.error('Enter a valid 10-digit Indian mobile number')
         return
       }
     }
@@ -216,18 +215,20 @@ export default function CheckoutPage() {
         .insert({
           shop_id: shopId,
           order_number: orderNumber,
-          customer_name: data.customer_name,
-          customer_phone: isAnonymous ? 'Anonymous' : (data.customer_phone || ''),
+          customer_name: profile ? profile.name : 'Unknown',
+          customer_phone: profile ? profile.phone : '',
           notes: data.notes || null,
           status: orderStatus,
           payment_method: paymentMethod,
           payment_status: 'pending',
+          order_type: orderType,
           is_anonymous: isAnonymous,
           order_source: 'qr',
           coupon_code: appliedCoupon?.code ?? null,
           discount_amount: discountAmount,
           subtotal,
           tax_amount: taxAmount,
+          packing_charge: packingCharge,
           total,
           customer_profile_id: profileId || null,
         })
@@ -373,14 +374,23 @@ export default function CheckoutPage() {
                 )}
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{ci.menu_item.name}</p>
+                  {ci.variant && (
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                      {ci.variant.size} {ci.variant.unit || ci.menu_item.unit || ''}
+                    </div>
+                  )}
                   {ci.customizations.length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-1">
                       {ci.customizations.map((c, i) => (
-                        <span key={i} className="text-xs bg-brand-accent-light dark:bg-brand-primary-shadow text-brand-primary-dark dark:text-brand-primary px-1.5 py-0.5 rounded-full">{c.choice}</span>
+                        <span key={i} className="text-xs bg-brand-accent-light dark:bg-brand-primary-shadow text-brand-primary-dark dark:text-brand-primary px-1.5 py-0.5 rounded-full">
+                          {c.choice} {c.price > 0 && `(+₹${c.price})`}
+                        </span>
                       ))}
                     </div>
                   )}
-                  <p className="text-sm font-semibold text-brand-accent dark:text-brand-primary mt-0.5">{formatCurrency(ci.menu_item.price)}</p>
+                  <p className="text-sm font-semibold text-brand-accent dark:text-brand-primary mt-0.5">
+                    {formatCurrency((ci.variant ? ci.variant.price : ci.menu_item.price) + (ci.customizations?.reduce((sum, c) => sum + (c.price || 0), 0) || 0))}
+                  </p>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="flex items-center gap-1.5 bg-gray-50 dark:bg-slate-800 rounded-xl p-1">
@@ -409,6 +419,11 @@ export default function CheckoutPage() {
             <div className="flex justify-between text-sm text-gray-500 dark:text-gray-400">
               <span>Subtotal</span><span>{formatCurrency(subtotal)}</span>
             </div>
+            {packingCharge > 0 && (
+              <div className="flex justify-between text-sm text-gray-500 dark:text-gray-400">
+                <span>Packing Charge</span><span>{formatCurrency(packingCharge)}</span>
+              </div>
+            )}
             {taxAmount > 0 && (
               <div className="flex justify-between text-sm text-gray-500 dark:text-gray-400">
                 <span>Tax ({taxPercent}%)</span><span>{formatCurrency(taxAmount)}</span>
@@ -422,6 +437,16 @@ export default function CheckoutPage() {
             )}
             <div className="flex justify-between font-bold text-gray-900 dark:text-white pt-1 border-t border-gray-200 dark:border-slate-600">
               <span>Total</span><span className="text-brand-accent dark:text-brand-primary">{formatCurrency(total)}</span>
+            </div>
+            
+            <div className="pt-3 pb-1">
+              <button
+                type="button"
+                onClick={() => navigate(`/order/${slug}`)}
+                className="w-full h-10 rounded-xl border-2 border-dashed border-gray-200 dark:border-slate-600 text-gray-500 dark:text-gray-400 font-medium text-sm hover:border-brand-primary hover:text-brand-primary dark:hover:border-brand-primary dark:hover:text-brand-primary transition-colors flex items-center justify-center gap-2"
+              >
+                <Plus size={16} /> Add more items
+              </button>
             </div>
           </div>
 
@@ -460,47 +485,63 @@ export default function CheckoutPage() {
             </div>
           )}
         </div>
+
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-4 space-y-4">
+          <h2 className="font-semibold text-gray-900 dark:text-white text-sm">Order Type</h2>
+          <div className="flex bg-gray-50 dark:bg-slate-800 p-1 rounded-xl">
+            <button
+              type="button"
+              onClick={() => setOrderType('dine_in')}
+              className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all ${orderType === 'dine_in' ? 'bg-white dark:bg-slate-700 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400'}`}
+            >
+              Dine-in
+            </button>
+            <button
+              type="button"
+              onClick={() => setOrderType('takeaway')}
+              className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all ${orderType === 'takeaway' ? 'bg-white dark:bg-slate-700 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400'}`}
+            >
+              Takeaway
+            </button>
+          </div>
+        </div>
+
         <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-4 space-y-4">
           <h2 className="font-semibold text-gray-900 dark:text-white text-sm">Your details</h2>
-          <Input
-            label="Your name"
-            placeholder="e.g. Arjun Kumar"
-            icon={<User size={16} />}
-            error={errors.customer_name?.message}
-            {...register('customer_name')}
-          />
-          {!isAnonymous && (
-            <Input
-              label="Phone number"
-              type="tel"
-              placeholder="98765 43210"
-              icon={<Phone size={16} />}
-              error={errors.customer_phone?.message}
-              {...register('customer_phone')}
-            />
+          
+          {!profile ? (
+            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/60 rounded-2xl p-4 text-center">
+              <p className="text-sm font-semibold text-amber-900 dark:text-amber-100 mb-1">Sign in to place order</p>
+              <p className="text-xs text-amber-700 dark:text-amber-300 mb-4">You must have a profile to order online so you can track your orders.</p>
+              <button
+                type="button"
+                onClick={() => navigate(`/order/${slug}/profile`)}
+                className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-all shadow-md active:scale-95"
+              >
+                Sign In / Create Profile
+              </button>
+            </div>
+          ) : (
+            <div className="bg-gray-50 dark:bg-slate-800 rounded-2xl p-4 flex items-center justify-between border border-gray-100 dark:border-slate-700">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-brand-primary-lighter dark:bg-brand-primary/20 rounded-full flex items-center justify-center">
+                  <User size={20} className="text-brand-primary" />
+                </div>
+                <div>
+                  <p className="font-semibold text-gray-900 dark:text-white text-sm">{profile.name}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{profile.phone}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => navigate(`/order/${slug}/profile/${profile.id}`)}
+                className="text-xs font-semibold text-brand-primary hover:underline"
+              >
+                View Profile
+              </button>
+            </div>
           )}
-          {/* Anonymous toggle */}
-          {/* <button
-            type="button"
-            onClick={() => setIsAnonymous((v) => !v)}
-            className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl border transition-all ${isAnonymous ? 'border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20' : 'border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 hover:bg-gray-100 dark:hover:bg-slate-700'
-              }`}
-          >
-            <div className="flex items-center gap-2">
-              <EyeOff size={15} className={isAnonymous ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-gray-500'} />
-              <span className={`text-sm font-medium ${isAnonymous ? 'text-blue-700 dark:text-blue-300' : 'text-gray-600 dark:text-gray-300'}`}>
-                Prefer not to share phone number
-              </span>
-            </div>
-            <div className={`w-9 h-5 rounded-full transition-colors relative ${isAnonymous ? 'bg-blue-500 dark:bg-blue-600' : 'bg-gray-300 dark:bg-slate-600'}`}>
-              <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${isAnonymous ? 'translate-x-4' : 'translate-x-0.5'}`} />
-            </div>
-          </button>
-          {isAnonymous && (
-            <p className="text-xs text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded-xl px-3 py-2">
-              🔒 Your phone number won't be shared with the shop.
-            </p>
-          )} */}
+
           <Textarea
             label="Special instructions (optional)"
             placeholder="e.g. Less sugar, extra shot..."
@@ -509,7 +550,7 @@ export default function CheckoutPage() {
         </div>
 
         {/* Payment method */}
-        {(acceptsUpi || acceptsCash) && (
+        {profile && (acceptsUpi || acceptsCash) && (
           <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-4 space-y-3">
             <h2 className="font-semibold text-gray-900 dark:text-white text-sm">How would you like to pay?</h2>
             <div className={`grid gap-3 ${acceptsUpi && acceptsCash ? 'grid-cols-2' : 'grid-cols-1'}`}>
@@ -559,19 +600,21 @@ export default function CheckoutPage() {
       </div>
 
       {/* Place order button */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-slate-900 border-t border-gray-100 dark:border-slate-800 p-4">
-        <div className="max-w-lg mx-auto">
-          <Button
-            className="w-full"
-            size="lg"
-            loading={loading}
-            onClick={handleSubmit(onSubmit)}
-          >
-            <span>Place Order · {formatCurrency(total)}</span>
-            <ChevronRight size={18} className="ml-1" />
-          </Button>
+      {profile && (
+        <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-slate-900 border-t border-gray-100 dark:border-slate-800 p-4">
+          <div className="max-w-lg mx-auto">
+            <Button
+              className="w-full"
+              size="lg"
+              loading={loading}
+              onClick={handleSubmit(onSubmit)}
+            >
+              <span>Place Order · {formatCurrency(total)}</span>
+              <ChevronRight size={18} className="ml-1" />
+            </Button>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }

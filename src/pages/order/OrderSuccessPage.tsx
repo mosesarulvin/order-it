@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { CheckCircle, Clock, ChefHat, Bell, ArrowLeft, Share2, ShoppingBag, XCircle, AlertCircle, Star, Gift } from 'lucide-react'
+import { CheckCircle, Clock, ChefHat, Bell, ArrowLeft, Share2, ShoppingBag, XCircle, AlertCircle, Star, Gift, BellRing, VolumeX } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { formatCurrency } from '@/lib/utils'
+import { useCustomerOrderNotifications } from '@/hooks/useCustomerOrderNotifications'
 import type { Order } from '@/types'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import toast from 'react-hot-toast'
@@ -33,7 +34,10 @@ export default function OrderSuccessPage() {
   const [reviewsEnabled, setReviewsEnabled] = useState(false)
   const [hasReviewed, setHasReviewed] = useState(false)
   const [hasProfile, setHasProfile] = useState(false)
+  const [soundBlocked, setSoundBlocked] = useState(false)
   const channelRef = useRef<RealtimeChannel | null>(null)
+
+  const { permission, requestPermission, playSound, triggerReadyAlert } = useCustomerOrderNotifications(slug, orderId)
 
   // Save order ID with timestamp to recent orders in localStorage
   useEffect(() => {
@@ -78,6 +82,13 @@ export default function OrderSuccessPage() {
     if (data) {
       setOrder(data as Order)
       setFetchError(false)
+      if (data.status === 'ready') {
+        triggerReadyAlert(data.order_number, data.id)
+        // Check if sound is blocked — show banner only if it fails
+        playSound().then((played) => {
+          if (!played) setSoundBlocked(true)
+        })
+      }
       // Fetch shop reviews_enabled flag
       supabase.from('shops').select('reviews_enabled').eq('id', data.shop_id).single()
         .then(({ data: sd }) => { if (sd) setReviewsEnabled(sd.reviews_enabled ?? false) })
@@ -170,13 +181,17 @@ export default function OrderSuccessPage() {
           </button>
           <div className="pt-2 pb-6 text-center">
             <div className="relative inline-flex">
-              <div className="w-24 h-24 rounded-full bg-white/20 flex items-center justify-center mb-4">
-                {isCancelled
-                  ? <XCircle size={48} className="text-white" />
-                  : isReady
-                    ? <ShoppingBag size={48} className="text-white" />
-                    : <CheckCircle size={48} className="text-white" />
-                }
+              <div className="w-24 h-24 rounded-full bg-white/20 flex items-center justify-center mb-4 relative">
+                {isReady && (
+                  <span className="absolute inset-0 rounded-full bg-white/30 animate-ping pointer-events-none" />
+                )}
+                {isCancelled ? (
+                  <XCircle size={48} className="text-white" />
+                ) : isReady ? (
+                  <BellRing size={48} className="text-white animate-bounce" />
+                ) : (
+                  <CheckCircle size={48} className="text-white" />
+                )}
               </div>
             </div>
             <h1 className="text-2xl font-bold">
@@ -192,7 +207,7 @@ export default function OrderSuccessPage() {
           </div>
 
           {/* Order number card */}
-          <div className="bg-white/20 backdrop-blur-sm rounded-2xl p-5 text-center">
+          <div className="bg-white/20 backdrop-blur-sm rounded-2xl p-5 text-center relative overflow-hidden">
             <p className="text-white/70 text-sm mb-1">Order Number</p>
             <p className="text-4xl font-black tracking-wide">{order.order_number}</p>
             {!isCancelled && (
@@ -203,6 +218,29 @@ export default function OrderSuccessPage() {
       </div>
 
       <div className="max-w-lg mx-auto px-4 py-5 space-y-4">
+        {/* Sound muted banner — only shown when browser blocked autoplay */}
+        {soundBlocked && isReady && (
+          <div className="bg-slate-900/90 dark:bg-slate-800 border border-slate-700 rounded-2xl p-4 flex items-center justify-between gap-3 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 bg-slate-700 text-slate-300 rounded-xl flex items-center justify-center flex-shrink-0">
+                <VolumeX size={18} />
+              </div>
+              <div>
+                <p className="font-semibold text-white text-xs">🔇 Sound was muted</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">Browser blocked the alert. Tap to enable sound.</p>
+              </div>
+            </div>
+            <button
+              onClick={async () => {
+                const played = await playSound()
+                if (played) setSoundBlocked(false)
+              }}
+              className="flex-shrink-0 px-3.5 py-2 bg-white text-slate-900 text-xs font-bold rounded-xl transition-all active:scale-95"
+            >
+              Tap to Play
+            </button>
+          </div>
+        )}
         {/* Cancelled state */}
         {isCancelled && (
           <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-2xl p-4 text-center">
@@ -267,9 +305,29 @@ export default function OrderSuccessPage() {
               </div>
             ))}
           </div>
-          <div className="px-4 py-3 bg-gray-50 dark:bg-slate-800 border-t border-gray-100 dark:border-slate-700 flex justify-between font-bold">
-            <span className="text-gray-900 dark:text-white">Total</span>
-            <span className="text-brand-accent">{formatCurrency(order.total)}</span>
+          <div className="px-4 py-3 bg-gray-50 dark:bg-slate-800 border-t border-gray-100 dark:border-slate-700 space-y-1.5">
+            <div className="flex justify-between text-sm text-gray-500">
+              <span>Subtotal</span><span>{formatCurrency(order.subtotal)}</span>
+            </div>
+            {order.packing_charge > 0 && (
+              <div className="flex justify-between text-sm text-gray-500">
+                <span>Packing Charge</span><span>{formatCurrency(order.packing_charge)}</span>
+              </div>
+            )}
+            {order.tax_amount > 0 && (
+              <div className="flex justify-between text-sm text-gray-500">
+                <span>Tax</span><span>{formatCurrency(order.tax_amount)}</span>
+              </div>
+            )}
+            {order.discount_amount > 0 && (
+              <div className="flex justify-between text-sm text-green-600">
+                <span>Discount</span><span>-{formatCurrency(order.discount_amount)}</span>
+              </div>
+            )}
+            <div className="flex justify-between font-bold text-gray-900 dark:text-white pt-1.5 border-t border-gray-200 dark:border-slate-700">
+              <span>Total</span>
+              <span className="text-brand-accent">{formatCurrency(order.total)}</span>
+            </div>
           </div>
         </div>
 

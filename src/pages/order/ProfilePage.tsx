@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
-import { User, Phone, Mail, CalendarDays, ArrowLeft, Gift } from 'lucide-react'
+import { User, Phone, Mail, CalendarDays, ArrowLeft, Gift, Lock, Eye, EyeOff } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/Button'
 import toast from 'react-hot-toast'
@@ -14,11 +14,16 @@ export default function ProfilePage() {
   const [phone, setPhone] = useState(searchParams.get('phone') || '')
   const [email, setEmail] = useState('')
   const [birthday, setBirthday] = useState('')
+  const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
 
   const submit = async () => {
     if (!name.trim()) { toast.error('Name is required'); return }
     if (!/^[6-9]\d{9}$/.test(phone)) { toast.error('Enter a valid 10-digit Indian mobile number'); return }
+    if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) { toast.error('Enter a valid email address'); return }
+    if (!birthday) { toast.error('Birthday is required'); return }
+    if (!password.trim() || password.length < 6) { toast.error('Password must be at least 6 characters'); return }
 
     setLoading(true)
     try {
@@ -41,9 +46,10 @@ export default function ProfilePage() {
       let profileId: string
 
       if (existing) {
-        // Profile exists — just log in to it
-        profileId = existing.id
-        toast('Profile already exists! Logging you in.')
+        setLoading(false)
+        toast.error('A profile with this mobile number already exists. Please sign in.')
+        navigate(`/order/${slug}/profile`)
+        return
       } else {
         // Create new profile
         const { data: profile, error: profileErr } = await supabase
@@ -52,8 +58,9 @@ export default function ProfilePage() {
             shop_id: shop.id,
             name: name.trim(),
             phone,
-            email: email.trim() || null,
-            birthday: birthday || null,
+            email: email.trim(),
+            birthday,
+            password,
           })
           .select('id')
           .single()
@@ -100,8 +107,8 @@ export default function ProfilePage() {
       {/* Header */}
       <div className="gradient-brand-header text-white px-4 pt-safe pb-10">
         <div className="max-w-lg mx-auto pt-4">
-          <button onClick={() => navigate(`/order/${slug}`)} className="flex items-center gap-2 text-white/80 hover:text-white mb-4 text-sm">
-            <ArrowLeft size={16} /> Back to menu
+          <button onClick={() => navigate(`/order/${slug}/profile`)} className="flex items-center gap-2 text-white/80 hover:text-white mb-4 text-sm">
+            <ArrowLeft size={16} /> Back
           </button>
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center">
@@ -109,7 +116,8 @@ export default function ProfilePage() {
             </div>
             <div>
               <h1 className="text-2xl font-bold">Create Profile</h1>
-              <p className="text-white/80 text-sm mt-0.5">Get exclusive offers & track your orders</p>
+              {/* <p className="text-white/80 text-sm mt-0.5">Get exclusive offers &amp; track your orders</p> */}
+              <p className="text-white/80 text-sm mt-0.5">Track your orders</p>
             </div>
           </div>
         </div>
@@ -120,11 +128,14 @@ export default function ProfilePage() {
         <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-4 space-y-2 shadow-sm">
           <p className="font-semibold text-gray-900 dark:text-white text-sm">Why create a profile?</p>
           <div className="space-y-1.5">
-            {['🎁 Get a welcome discount on your first order', '🎂 Receive birthday offers', '📣 Shop promotions sent directly to you', '📋 View your complete order history'].map((perk) => (
-              <p key={perk} className="text-sm text-gray-600 dark:text-gray-300">{perk}</p>
-            ))}
+            {[
+              // '🎁 Get a welcome discount on your first order', 
+              // '🎂 Receive birthday offers', 
+              '📣 Shop promotions sent directly to you',
+              '📋 View your complete order history'].map((perk) => (
+                <p key={perk} className="text-sm text-gray-600 dark:text-gray-300">{perk}</p>
+              ))}
           </div>
-          <p className="text-xs text-gray-400 dark:text-gray-500 pt-1">Optional — you can still order without a profile.</p>
         </div>
 
         {/* Form */}
@@ -149,7 +160,7 @@ export default function ProfilePage() {
               <Phone size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 pointer-events-none" />
               <input
                 type="tel"
-                placeholder="98765 43210"
+                placeholder="9876543210"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
                 className="w-full h-10 pl-9 pr-3 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 text-sm outline-none focus-brand transition-colors"
@@ -158,7 +169,7 @@ export default function ProfilePage() {
           </div>
 
           <div className="space-y-1">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Email <span className="text-gray-400 dark:text-gray-500 font-normal">(optional)</span></label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Email *</label>
             <div className="relative">
               <Mail size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 pointer-events-none" />
               <input
@@ -172,7 +183,7 @@ export default function ProfilePage() {
           </div>
 
           <div className="space-y-1">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Birthday <span className="text-gray-400 dark:text-gray-500 font-normal">(optional — for birthday offers)</span></label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Birthday *</label>
             <div className="relative">
               <CalendarDays size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 pointer-events-none" />
               <input
@@ -183,10 +194,31 @@ export default function ProfilePage() {
               />
             </div>
           </div>
+
+          <div className="space-y-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Password *</label>
+            <div className="relative">
+              <Lock size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 pointer-events-none" />
+              <input
+                type={showPassword ? 'text' : 'password'}
+                placeholder="Create a password (min 6 chars)"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full h-10 pl-9 pr-10 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 text-sm outline-none focus-brand transition-colors"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+              >
+                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
+          </div>
         </div>
 
         <Button onClick={submit} loading={loading} className="w-full" size="lg">
-          Create Profile & Get My Offers
+          Create Profile &amp; Get My Offers
         </Button>
       </div>
     </div>

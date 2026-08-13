@@ -5,6 +5,7 @@ export interface Shop {
   slug: string
   description: string | null
   logo_url: string | null
+  cover_image_url: string | null
   phone: string | null
   address: string | null
   currency: string
@@ -34,11 +35,24 @@ export interface MenuCategory {
   created_at: string
 }
 
+export interface CustomizationChoice {
+  name: string
+  price: number
+}
+
 export interface CustomizationGroup {
   name: string
   type: 'single' | 'multi'
   required: boolean
-  choices: string[]
+  choices: CustomizationChoice[]
+}
+
+export interface MenuItemVariant {
+  id: string
+  size: string
+  unit?: string
+  price: number
+  is_out_of_stock?: boolean
 }
 
 export interface MenuItem {
@@ -56,7 +70,15 @@ export interface MenuItem {
   stock_quantity: number | null
   low_stock_threshold: number
   customization_groups: CustomizationGroup[]
+  unit: string | null
+  variants: MenuItemVariant[]
+  tags?: string[]
+  takeaway_price?: number | null
   sort_order: number
+  is_category_image: boolean
+  is_special: boolean
+  rating_average?: number
+  rating_count?: number
   created_at: string
   updated_at: string
   category?: MenuCategory
@@ -75,8 +97,10 @@ export interface Order {
   status: OrderStatus
   payment_method: PaymentMethod
   payment_status: PaymentStatus
+  order_type: 'dine_in' | 'takeaway'
   subtotal: number
   tax_amount: number
+  packing_charge: number
   discount_amount: number
   total: number
   notes: string | null
@@ -99,7 +123,7 @@ export interface OrderItem {
   price: number
   quantity: number
   subtotal: number
-  customizations: { group: string; choice: string }[]
+  customizations: { group: string; choice: string; price: number }[]
   created_at: string
   menu_item?: MenuItem
 }
@@ -107,7 +131,8 @@ export interface OrderItem {
 export interface CartItem {
   menu_item: MenuItem
   quantity: number
-  customizations: { group: string; choice: string }[]
+  customizations: { group: string; choice: string; price: number }[]
+  variant?: MenuItemVariant
 }
 
 export interface DashboardStats {

@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react'
-import { Star, MessageSquare } from 'lucide-react'
+import { Star, MessageSquare, Trash2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { formatDate } from '@/lib/utils'
+import { Modal } from '@/components/ui/Modal'
+import { Button } from '@/components/ui/Button'
+import toast from 'react-hot-toast'
 import type { Review } from '@/types'
 
 function StarRow({ rating, size = 14 }: { rating: number; size?: number }) {
@@ -24,6 +27,8 @@ export default function ReviewsPage() {
   const [reviews, setReviews] = useState<Review[]>([])
   const [loading, setLoading] = useState(true)
   const [filterRating, setFilterRating] = useState<number | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   useEffect(() => {
     if (!shop) return
@@ -37,6 +42,20 @@ export default function ReviewsPage() {
         setLoading(false)
       })
   }, [shop])
+
+  const confirmDelete = async () => {
+    if (!deletingId) return
+    setIsDeleting(true)
+    const { error } = await supabase.from('reviews').delete().eq('id', deletingId)
+    if (error) {
+      toast.error('Failed to delete review')
+    } else {
+      toast.success('Review deleted')
+      setReviews(prev => prev.filter(r => r.id !== deletingId))
+    }
+    setIsDeleting(false)
+    setDeletingId(null)
+  }
 
   const filtered = filterRating ? reviews.filter((r) => r.rating === filterRating) : reviews
 
@@ -136,7 +155,16 @@ export default function ReviewsPage() {
                 </div>
                 <div className="flex flex-col items-end gap-1">
                   <StarRow rating={review.rating} />
-                  <span className="text-xs text-gray-400 dark:text-gray-500">{formatDate(review.created_at)}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-400 dark:text-gray-500">{formatDate(review.created_at)}</span>
+                    <button
+                      onClick={() => setDeletingId(review.id)}
+                      className="text-gray-400 hover:text-red-500 transition-colors p-1"
+                      title="Delete review"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
                 </div>
               </div>
               {review.comment && (
@@ -146,6 +174,36 @@ export default function ReviewsPage() {
           ))}
         </div>
       )}
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        open={!!deletingId}
+        onClose={() => !isDeleting && setDeletingId(null)}
+        title="Delete Review"
+        size="sm"
+      >
+        <div className="space-y-4">
+          <p className="text-gray-600 dark:text-gray-300">
+            Are you sure you want to delete this review? This action cannot be undone, and the average ratings for associated menu items will be updated.
+          </p>
+          <div className="flex justify-end gap-3 pt-2 border-t border-gray-100 dark:border-slate-800">
+            <Button
+              variant="secondary"
+              onClick={() => setDeletingId(null)}
+              disabled={isDeleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              onClick={confirmDelete}
+              loading={isDeleting}
+            >
+              Delete
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }

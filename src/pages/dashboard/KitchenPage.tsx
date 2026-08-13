@@ -308,7 +308,10 @@ export default function KitchenPage() {
                             <div>
                               <p className="font-bold text-gray-900 dark:text-white">{order.order_number}</p>
                               {order.order_source === 'walkin' && (
-                                <span className="text-xs px-1.5 py-0.5 rounded-full font-medium bg-indigo-100 text-indigo-700 inline-block mt-0.5">Walk-in</span>
+                                <span className="text-xs px-1.5 py-0.5 rounded-full font-medium bg-indigo-100 text-indigo-700 inline-block mt-0.5 mr-1">Walk-in</span>
+                              )}
+                              {order.order_type === 'takeaway' && (
+                                <span className="text-xs px-1.5 py-0.5 rounded-full font-medium bg-blue-100 text-blue-700 inline-block mt-0.5">Takeaway</span>
                               )}
                               <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{order.customer_name}</p>
                               {order.is_anonymous

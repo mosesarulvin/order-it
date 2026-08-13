@@ -1,19 +1,24 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Tag, ShoppingBag, Gift, User, UtensilsCrossed, ChevronRight, LogOut } from 'lucide-react'
+import { ArrowLeft, Tag, ShoppingBag, Gift, User, UtensilsCrossed, ChevronRight, LogOut, BellRing, RotateCcw } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { formatCurrency, formatDate } from '@/lib/utils'
-import type { CustomerProfile, ProfileCoupon, Order } from '@/types'
+import { useCustomerOrderNotifications } from '@/hooks/useCustomerOrderNotifications'
+import { useCartStore } from '@/store/cartStore'
+import type { CustomerProfile, ProfileCoupon, Order, CartItem } from '@/types'
 import toast from 'react-hot-toast'
 
 export default function ProfileDashboardPage() {
   const { slug, profileId } = useParams<{ slug: string; profileId: string }>()
   const navigate = useNavigate()
+  useCustomerOrderNotifications(slug)
   const [profile, setProfile] = useState<CustomerProfile | null>(null)
   const [coupons, setCoupons] = useState<ProfileCoupon[]>([])
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
-  const [tab, setTab] = useState<'coupons' | 'history'>('coupons')
+  const [tab, setTab] = useState<'history' | 'coupons'>('history')
+  const { setCart } = useCartStore()
+  const [reorderingId, setReorderingId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!profileId) return
@@ -58,6 +63,63 @@ export default function ProfileDashboardPage() {
     localStorage.removeItem(`profile-${slug}`)
     toast.success('Signed out of profile')
     navigate(`/order/${slug}`)
+  }
+
+  const handleReorder = async (e: React.MouseEvent, order: Order) => {
+    e.stopPropagation()
+    if (!order.items || order.items.length === 0) {
+      toast.error('No items found in this order')
+      return
+    }
+
+    setReorderingId(order.id)
+    try {
+      const itemIds = order.items.map((i) => i.menu_item_id)
+      
+      const { data: menuItems, error } = await supabase
+        .from('menu_items')
+        .select('*')
+        .in('id', itemIds)
+        .eq('is_available', true)
+        
+      if (error) throw error
+      if (!menuItems || menuItems.length === 0) {
+        toast.error('These items are no longer available')
+        return
+      }
+
+      const newCartItems: CartItem[] = []
+      
+      for (const orderItem of order.items) {
+        const menuItem = menuItems.find(m => m.id === orderItem.menu_item_id)
+        if (menuItem) {
+          newCartItems.push({
+            menu_item: menuItem,
+            quantity: orderItem.quantity,
+            customizations: orderItem.customizations || []
+          })
+        }
+      }
+
+      if (newCartItems.length === 0) {
+        toast.error('None of these items are currently available')
+        return
+      }
+
+      setCart(newCartItems, slug)
+      
+      if (newCartItems.length < order.items.length) {
+        toast.success('Some items were unavailable, added the rest to your cart!')
+      } else {
+        toast.success('Order added to cart!')
+      }
+      
+      navigate(`/order/${slug}/checkout`)
+    } catch (error: any) {
+      toast.error('Failed to reorder: ' + error.message)
+    } finally {
+      setReorderingId(null)
+    }
   }
 
   const unusedCoupons = coupons.filter((c) => !c.used_at)
@@ -131,7 +193,7 @@ export default function ProfileDashboardPage() {
       <div className="max-w-lg mx-auto px-4 -mt-4 pb-32 space-y-4">
         {/* Tabs */}
         <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 flex overflow-hidden shadow-sm">
-          {(['coupons', 'history'] as const).map((t) => (
+          {(['history', 'coupons'] as const).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -222,13 +284,23 @@ export default function ProfileDashboardPage() {
                   </div>
                   <div className="flex items-center justify-between text-xs text-gray-400 dark:text-gray-500">
                     <span>{formatDate(order.created_at)}</span>
-                    <span className="font-semibold text-gray-900 dark:text-white">{formatCurrency(order.total)}</span>
                   </div>
                   {order.items && order.items.length > 0 && (
                     <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 truncate">
                       {order.items.map((i) => `${i.name} ×${i.quantity}`).join(', ')}
                     </p>
                   )}
+                  <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-50 dark:border-slate-800">
+                    <span className="font-bold text-gray-900 dark:text-white">{formatCurrency(order.total)}</span>
+                    <button
+                      onClick={(e) => handleReorder(e, order)}
+                      disabled={reorderingId === order.id}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-primary/10 text-brand-primary rounded-lg text-sm font-semibold hover:bg-brand-primary/20 transition-colors disabled:opacity-50"
+                    >
+                      <RotateCcw size={16} className={reorderingId === order.id ? 'animate-spin' : ''} />
+                      {reorderingId === order.id ? 'Reordering...' : 'Reorder'}
+                    </button>
+                  </div>
                 </div>
               ))
             )}

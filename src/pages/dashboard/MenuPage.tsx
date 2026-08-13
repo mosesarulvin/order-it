@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Plus, Pencil, Trash2, GripVertical, ImagePlus, Tag, ChevronDown, ChevronUp, Zap, Package, X as XIcon, Settings2 } from 'lucide-react'
+import { Plus, Pencil, Trash2, GripVertical, ImagePlus, Tag, ChevronDown, ChevronUp, Zap, Package, X as XIcon, Settings2, Image as ImageIcon, Star } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -13,7 +13,7 @@ import { Modal } from '@/components/ui/Modal'
 import { Toggle } from '@/components/ui/Toggle'
 import { Badge } from '@/components/ui/Badge'
 import { Skeleton } from '@/components/ui/Skeleton'
-import type { CustomizationGroup, MenuCategory, MenuItem } from '@/types'
+import type { CustomizationGroup, MenuCategory, MenuItem, MenuItemVariant } from '@/types'
 import toast from 'react-hot-toast'
 
 const categorySchema = z.object({
@@ -31,6 +31,10 @@ const itemSchema = z.object({
   stock_quantity: z.number().int().min(0).optional(),
   low_stock_threshold: z.number().int().min(0).optional(),
   calories: z.number().int().min(0).optional(),
+  is_category_image: z.boolean().optional(),
+  is_special: z.boolean().optional(),
+  tags: z.string().optional(),
+  takeaway_price: z.number().min(0).optional(),
 })
 
 type CategoryForm = z.infer<typeof categorySchema>
@@ -50,6 +54,8 @@ export default function MenuPage() {
   const fileRef = useRef<HTMLInputElement>(null)
   // customization groups state (managed separately from react-hook-form)
   const [customGroups, setCustomGroups] = useState<CustomizationGroup[]>([])
+  const [itemUnit, setItemUnit] = useState<string>('')
+  const [itemVariants, setItemVariants] = useState<MenuItemVariant[]>([])
 
   const catForm = useForm<CategoryForm>({ resolver: zodResolver(categorySchema) })
   const itemForm = useForm<ItemForm>({ resolver: zodResolver(itemSchema) })
@@ -109,8 +115,10 @@ export default function MenuPage() {
 
   // ── ITEM ACTIONS ─────────────────────────────────────────────────────────────
   const openAddItem = (categoryId: string) => {
-    itemForm.reset({ name: '', description: '', price: 0, calories: undefined, is_popular: false, is_instant: false, track_stock: false, stock_quantity: 0, low_stock_threshold: 5 })
+    itemForm.reset({ name: '', description: '', price: 0, calories: undefined, is_popular: false, is_instant: false, track_stock: false, stock_quantity: 0, low_stock_threshold: 5, is_category_image: false, is_special: false })
     setCustomGroups([])
+    setItemUnit('')
+    setItemVariants([])
     setItemModal({ open: true, categoryId })
   }
 
@@ -125,8 +133,17 @@ export default function MenuPage() {
       track_stock: item.stock_quantity !== null,
       stock_quantity: item.stock_quantity ?? 0,
       low_stock_threshold: item.low_stock_threshold ?? 5,
+      is_category_image: item.is_category_image,
+      is_special: item.is_special,
+      tags: item.tags ? item.tags.join(', ') : '',
+      takeaway_price: item.takeaway_price ?? undefined,
     })
-    setCustomGroups(item.customization_groups ?? [])
+    setCustomGroups((item.customization_groups ?? []).map(g => ({
+      ...g,
+      choices: (g.choices as any[]).map(c => typeof c === 'string' ? { name: c, price: 0 } : c)
+    })))
+    setItemUnit(item.unit || '')
+    setItemVariants(item.variants || [])
     setItemModal({ open: true, editing: item, categoryId: item.category_id })
   }
 
@@ -186,6 +203,21 @@ export default function MenuPage() {
       is_available: true,
       sort_order: items.filter((i) => i.category_id === itemModal.categoryId).length,
       image_url: imageUrl,
+      is_category_image: data.is_category_image || false,
+      is_special: data.is_special || false,
+      unit: itemUnit || null,
+      variants: itemVariants,
+      tags: data.tags ? data.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
+      takeaway_price: data.takeaway_price ?? null,
+    }
+
+    if (data.is_category_image) {
+      // Unset is_category_image for all other items in this category
+      await supabase
+        .from('menu_items')
+        .update({ is_category_image: false })
+        .eq('shop_id', shop.id)
+        .eq('category_id', itemModal.categoryId)
     }
 
     if (itemModal.editing) {
@@ -309,6 +341,11 @@ export default function MenuPage() {
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 flex-wrap">
                                   <span className="font-medium text-gray-900 dark:text-white text-sm">{item.name}</span>
+                                  {item.rating_count && item.rating_count > 0 ? <Badge variant="outline" className="border-amber-400 text-amber-600 bg-amber-50 dark:border-amber-500/50 dark:text-amber-500 dark:bg-amber-900/20"><Star size={10} className="mr-1 fill-amber-400" />{Number(item.rating_average).toFixed(1)} ({item.rating_count})</Badge> : null}
+                                  {item.is_special && <Badge variant="outline" className="border-yellow-400 text-yellow-600 dark:border-yellow-500/50 dark:text-yellow-500 bg-yellow-50 dark:bg-yellow-900/20"><Star size={10} className="mr-1 fill-yellow-400" />Special</Badge>}
+                                  {item.unit && <Badge variant="outline" className="text-gray-500 bg-gray-50 border-gray-200 dark:bg-slate-800 dark:border-slate-700 dark:text-gray-400">{item.unit}</Badge>}
+                                  {item.variants && item.variants.length > 0 && <Badge variant="outline" className="text-gray-500 bg-gray-50 border-gray-200 dark:bg-slate-800 dark:border-slate-700 dark:text-gray-400">{item.variants.length} Sizes</Badge>}
+                                  {item.is_category_image && <Badge variant="outline" className="text-brand-primary border-brand-primary dark:text-brand-primary dark:border-brand-primary"><ImageIcon size={10} className="mr-1" />Category image</Badge>}
                                   {item.is_instant && <Badge variant="orange"><Zap size={10} className="mr-0.5" />Instant</Badge>}
                                   {item.is_popular && <Badge variant="orange">Popular</Badge>}
                                   {!item.is_available && <Badge variant="default">Unavailable</Badge>}
@@ -428,12 +465,123 @@ export default function MenuPage() {
               {...itemForm.register('price', { valueAsNumber: true })}
             />
             <Input
+              label="Takeaway Price (+₹)"
+              type="number"
+              step="0.5"
+              placeholder="0"
+              error={itemForm.formState.errors.takeaway_price?.message}
+              {...itemForm.register('takeaway_price', { setValueAs: v => (v === "" || Number.isNaN(v)) ? undefined : parseFloat(v) })}
+            />
+            <Input
               label="Calories (kcal) (optional)"
               type="number"
               placeholder="e.g. 250"
               error={itemForm.formState.errors.calories?.message}
-              {...itemForm.register('calories', { valueAsNumber: true, setValueAs: v => v === "" ? undefined : parseInt(v, 10) })}
+              {...itemForm.register('calories', { setValueAs: v => (v === "" || Number.isNaN(v)) ? undefined : parseInt(v, 10) })}
             />
+          </div>
+          <Input
+            label="Tags (comma separated)"
+            placeholder="e.g. High Protein, Vegan, Bestseller"
+            error={itemForm.formState.errors.tags?.message}
+            {...itemForm.register('tags')}
+          />
+
+          {/* Variants / Sizes */}
+          <div className="space-y-3 pt-3 border-t border-gray-100 dark:border-slate-800">
+            <div className="flex justify-between items-center">
+              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">Sizes / Variants</label>
+              <button
+                type="button"
+                onClick={() => setItemVariants([...itemVariants, { id: Math.random().toString(36).substring(7), size: '', price: 0 }])}
+                className="text-xs font-semibold text-brand-primary flex items-center gap-1 hover:underline"
+              >
+                <Plus size={14} /> Add Size
+              </button>
+            </div>
+
+            {itemVariants.map((variant, index) => (
+              <div key={variant.id} className="flex gap-2 items-center bg-gray-50 dark:bg-slate-800/50 p-2 rounded-xl border border-gray-100 dark:border-slate-700/50">
+                <Input
+                  placeholder="Size (e.g. 250)"
+                  value={variant.size}
+                  onChange={(e) => {
+                    const newVariants = [...itemVariants]
+                    newVariants[index].size = e.target.value
+                    setItemVariants(newVariants)
+                  }}
+                  className="flex-1"
+                />
+                <div className="relative">
+                  <select
+                    value={variant.unit || ''}
+                    onChange={(e) => {
+                      const newVariants = [...itemVariants]
+                      newVariants[index].unit = e.target.value
+                      setItemVariants(newVariants)
+                    }}
+                    className="w-28 pl-3 pr-8 py-2 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:border-brand-primary/50 transition-colors cursor-pointer appearance-none"
+                  >
+                    <option value="">Unit</option>
+                    <option value="ml">ml</option>
+                    <option value="l">l</option>
+                    <option value="g">g</option>
+                    <option value="kg">kg</option>
+                    <option value="pcs">pcs</option>
+                    <option value="plate">plate</option>
+                    <option value="bowl">bowl</option>
+                    <option value="cup">cup</option>
+                    <option value="glass">glass</option>
+                  </select>
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                    <ChevronDown size={14} />
+                  </div>
+                </div>
+                <Input
+                  type="number"
+                  placeholder="Price (₹)"
+                  value={variant.price || ''}
+                  onChange={(e) => {
+                    const newVariants = [...itemVariants]
+                    newVariants[index].price = parseFloat(e.target.value) || 0
+                    setItemVariants(newVariants)
+                  }}
+                  className="w-24"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const newVariants = [...itemVariants]
+                    newVariants[index].is_out_of_stock = !newVariants[index].is_out_of_stock
+                    setItemVariants(newVariants)
+                  }}
+                  className={`px-2 py-1.5 text-[10px] uppercase tracking-wider font-bold rounded-lg transition-colors border flex-shrink-0 ${
+                    variant.is_out_of_stock 
+                      ? 'bg-red-50 text-red-600 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800' 
+                      : 'bg-green-50 text-green-600 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800'
+                  }`}
+                  title={variant.is_out_of_stock ? "Mark as in stock" : "Mark as out of stock"}
+                >
+                  {variant.is_out_of_stock ? 'Out of stock' : 'In stock'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const newVariants = [...itemVariants]
+                    newVariants.splice(index, 1)
+                    setItemVariants(newVariants)
+                  }}
+                  className="p-2 text-gray-400 hover:text-red-500 transition-colors"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            ))}
+            {itemVariants.length > 0 && (
+              <p className="text-xs text-gray-500 dark:text-gray-400 pl-1">
+                If sizes are added, the base price acts as the "Starting at" price.
+              </p>
+            )}
           </div>
           <Toggle
             checked={itemForm.watch('is_popular') || false}
@@ -449,6 +597,16 @@ export default function MenuPage() {
             checked={itemForm.watch('track_stock') || false}
             onChange={(v) => itemForm.setValue('track_stock', v)}
             label="Track stock quantity"
+          />
+          <Toggle
+            checked={itemForm.watch('is_category_image') || false}
+            onChange={(v) => itemForm.setValue('is_category_image', v)}
+            label="Use as category banner image"
+          />
+          <Toggle
+            checked={itemForm.watch('is_special') || false}
+            onChange={(v) => itemForm.setValue('is_special', v)}
+            label="🌟 Mark as Today's Special (Promotional)"
           />
           {itemForm.watch('track_stock') && (
             <div className="grid grid-cols-2 gap-3 pl-2 border-l-2 border-orange-200">
@@ -467,42 +625,42 @@ export default function MenuPage() {
             </div>
           )}
 
-          {/* Customization Groups */}
+          {/* Add-ons Groups */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-gray-700">Customization Options</span>
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Add-ons Options</span>
               <button
                 type="button"
-                onClick={() => setCustomGroups((g) => [...g, { name: '', type: 'single', required: false, choices: [''] }])}
-                className="flex items-center gap-1 text-xs text-orange-600 hover:text-orange-700 font-medium"
+                onClick={() => setCustomGroups((g) => [...g, { name: '', type: 'single', required: false, choices: [{ name: '', price: 0 }] }])}
+                className="flex items-center gap-1 text-xs text-brand-primary hover:text-brand-primary-dark font-medium"
               >
                 <Plus size={13} /> Add Option Group
               </button>
             </div>
             {customGroups.map((group, gi) => (
-              <div key={gi} className="border border-gray-200 rounded-xl p-3 space-y-2.5 bg-gray-50">
+              <div key={gi} className="border border-gray-200 dark:border-slate-700/50 rounded-xl p-3 space-y-2.5 bg-gray-50 dark:bg-slate-800/50">
                 <div className="flex items-center gap-2">
                   <input
                     value={group.name}
                     onChange={(e) => setCustomGroups((g) => g.map((x, i) => i === gi ? { ...x, name: e.target.value } : x))}
                     placeholder="Group name (e.g. Spice Level)"
-                    className="flex-1 h-8 px-2 rounded-lg border border-gray-200 text-sm outline-none focus:border-orange-400"
+                    className="flex-1 h-8 px-2 rounded-lg border border-gray-200 dark:border-slate-700 text-sm outline-none focus:border-brand-primary bg-white dark:bg-slate-900 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500"
                   />
                   <button type="button" onClick={() => setCustomGroups((g) => g.filter((_, i) => i !== gi))} className="text-gray-400 hover:text-red-500">
                     <XIcon size={15} />
                   </button>
                 </div>
-                <div className="flex items-center gap-3 text-xs text-gray-600">
-                  <label className="flex items-center gap-1 cursor-pointer">
-                    <input type="radio" checked={group.type === 'single'} onChange={() => setCustomGroups((g) => g.map((x, i) => i === gi ? { ...x, type: 'single' } : x))} />
+                <div className="flex items-center gap-3 text-xs text-gray-600 dark:text-gray-400">
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input type="radio" checked={group.type === 'single'} onChange={() => setCustomGroups((g) => g.map((x, i) => i === gi ? { ...x, type: 'single' } : x))} className="accent-brand-primary w-3.5 h-3.5" />
                     Single choice
                   </label>
-                  <label className="flex items-center gap-1 cursor-pointer">
-                    <input type="radio" checked={group.type === 'multi'} onChange={() => setCustomGroups((g) => g.map((x, i) => i === gi ? { ...x, type: 'multi' } : x))} />
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input type="radio" checked={group.type === 'multi'} onChange={() => setCustomGroups((g) => g.map((x, i) => i === gi ? { ...x, type: 'multi' } : x))} className="accent-brand-primary w-3.5 h-3.5" />
                     Multi choice
                   </label>
-                  <label className="flex items-center gap-1 cursor-pointer ml-auto">
-                    <input type="checkbox" checked={group.required} onChange={(e) => setCustomGroups((g) => g.map((x, i) => i === gi ? { ...x, required: e.target.checked } : x))} />
+                  <label className="flex items-center gap-1.5 cursor-pointer ml-auto">
+                    <input type="checkbox" checked={group.required} onChange={(e) => setCustomGroups((g) => g.map((x, i) => i === gi ? { ...x, required: e.target.checked } : x))} className="accent-brand-primary w-3.5 h-3.5 rounded-sm" />
                     Required
                   </label>
                 </div>
@@ -510,11 +668,21 @@ export default function MenuPage() {
                   {group.choices.map((choice, ci) => (
                     <div key={ci} className="flex items-center gap-1.5">
                       <input
-                        value={choice}
-                        onChange={(e) => setCustomGroups((g) => g.map((x, i) => i === gi ? { ...x, choices: x.choices.map((c, j) => j === ci ? e.target.value : c) } : x))}
+                        value={choice.name}
+                        onChange={(e) => setCustomGroups((g) => g.map((x, i) => i === gi ? { ...x, choices: x.choices.map((c, j) => j === ci ? { ...c, name: e.target.value } : c) } : x))}
                         placeholder={`Choice ${ci + 1} (e.g. Mild)`}
-                        className="flex-1 h-7 px-2 rounded-lg border border-gray-200 text-xs outline-none focus:border-orange-400 bg-white"
+                        className="flex-1 h-7 px-2 rounded-lg border border-gray-200 dark:border-slate-700 text-xs outline-none focus:border-brand-primary bg-white dark:bg-slate-900 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500"
                       />
+                      <div className="flex items-center gap-1 w-24">
+                        <span className="text-xs text-gray-400 font-medium">₹</span>
+                        <input
+                          type="number"
+                          value={choice.price || ''}
+                          onChange={(e) => setCustomGroups((g) => g.map((x, i) => i === gi ? { ...x, choices: x.choices.map((c, j) => j === ci ? { ...c, price: parseFloat(e.target.value) || 0 } : c) } : x))}
+                          placeholder="Price"
+                          className="w-full h-7 px-2 rounded-lg border border-gray-200 dark:border-slate-700 text-xs outline-none focus:border-brand-primary bg-white dark:bg-slate-900 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500"
+                        />
+                      </div>
                       {group.choices.length > 1 && (
                         <button type="button" onClick={() => setCustomGroups((g) => g.map((x, i) => i === gi ? { ...x, choices: x.choices.filter((_, j) => j !== ci) } : x))} className="text-gray-300 hover:text-red-400">
                           <XIcon size={12} />
@@ -524,8 +692,8 @@ export default function MenuPage() {
                   ))}
                   <button
                     type="button"
-                    onClick={() => setCustomGroups((g) => g.map((x, i) => i === gi ? { ...x, choices: [...x.choices, ''] } : x))}
-                    className="text-xs text-orange-500 hover:text-orange-600 font-medium"
+                    onClick={() => setCustomGroups((g) => g.map((x, i) => i === gi ? { ...x, choices: [...x.choices, { name: '', price: 0 }] } : x))}
+                    className="text-xs text-brand-primary hover:text-brand-primary-dark font-medium"
                   >
                     + Add choice
                   </button>

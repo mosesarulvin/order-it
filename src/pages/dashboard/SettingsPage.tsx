@@ -26,6 +26,7 @@ const schema = z.object({
   auto_open_time: z.string().optional(),
   auto_close_time: z.string().optional(),
   logo_url: z.string().nullable().optional(),
+  cover_image_url: z.string().nullable().optional(),
   brand_primary: z.string().nullable().optional(),
   brand_secondary: z.string().nullable().optional(),
   brand_accent: z.string().nullable().optional(),
@@ -54,6 +55,7 @@ export default function SettingsPage() {
       auto_open_time: shop?.auto_open_time || '',
       auto_close_time: shop?.auto_close_time || '',
       logo_url: shop?.logo_url || null,
+      cover_image_url: shop?.cover_image_url || null,
       brand_primary: shop?.brand_primary || null,
       brand_secondary: shop?.brand_secondary || null,
       brand_accent: shop?.brand_accent || null,
@@ -62,10 +64,12 @@ export default function SettingsPage() {
 
   const isOpen = watch('is_open')
   const autoSchedule = watch('auto_schedule_enabled')
-  
+
   const [themeMode, setThemeMode] = useState<'default' | 'custom'>(shop?.brand_primary ? 'custom' : 'default')
   const [logoUploading, setLogoUploading] = useState(false)
   const [logoPreview, setLogoPreview] = useState<string | null>(shop?.logo_url || null)
+  const [coverUploading, setCoverUploading] = useState(false)
+  const [coverPreview, setCoverPreview] = useState<string | null>(shop?.cover_image_url || null)
 
   const brandPrimary = watch('brand_primary') || '#f97316'
   const brandSecondary = watch('brand_secondary') || '#f59e0b'
@@ -88,11 +92,13 @@ export default function SettingsPage() {
       setValue('auto_open_time', shop.auto_open_time || '')
       setValue('auto_close_time', shop.auto_close_time || '')
       setValue('logo_url', shop.logo_url || null)
+      setValue('cover_image_url', shop.cover_image_url || null)
       setValue('brand_primary', shop.brand_primary || null)
       setValue('brand_secondary', shop.brand_secondary || null)
       setValue('brand_accent', shop.brand_accent || null)
       setThemeMode(shop.brand_primary ? 'custom' : 'default')
       setLogoPreview(shop.logo_url || null)
+      setCoverPreview(shop.cover_image_url || null)
     }
   }, [shop, setValue])
 
@@ -136,6 +142,48 @@ export default function SettingsPage() {
   const removeLogo = () => {
     setValue('logo_url', null, { shouldDirty: true })
     setLogoPreview(null)
+  }
+
+  const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!shop) return
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    // 5MB size limit for cover images
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Cover image must be less than 5MB')
+      return
+    }
+
+    setCoverUploading(true)
+    const fileExt = file.name.split('.').pop()
+    const fileName = `${shop.id}-cover-${Math.random()}.${fileExt}`
+    const filePath = `covers/${fileName}`
+
+    try {
+      const { error: uploadError } = await supabase.storage
+        .from('shop-assets')
+        .upload(filePath, file)
+
+      if (uploadError) throw uploadError
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('shop-assets')
+        .getPublicUrl(filePath)
+
+      setValue('cover_image_url', publicUrl, { shouldDirty: true })
+      setCoverPreview(publicUrl)
+      toast.success('Menu cover image uploaded!')
+    } catch (error: any) {
+      toast.error('Error uploading cover image: ' + error.message)
+    } finally {
+      setCoverUploading(false)
+    }
+  }
+
+  const removeCover = () => {
+    setValue('cover_image_url', null, { shouldDirty: true })
+    setCoverPreview(null)
   }
 
   const applyPreset = (p: string, s: string, a: string) => {
@@ -271,6 +319,51 @@ export default function SettingsPage() {
               </div>
             </div>
 
+            {/* Menu Cover Image Upload */}
+            <div className="space-y-3 pt-4 border-t border-gray-100 dark:border-slate-800">
+              <div>
+                <p className="text-sm font-medium text-gray-800 dark:text-gray-200 flex items-center gap-1.5"><ImageIcon size={14} /> Customer Menu Cover Image</p>
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Upload a cover image for the menu page header (replaces yellow header)</p>
+              </div>
+              <div className="space-y-3">
+                <div className="relative w-full h-32 bg-gray-50 dark:bg-slate-800 rounded-2xl border-2 border-dashed border-gray-200 dark:border-slate-700 overflow-hidden flex items-center justify-center">
+                  {coverPreview ? (
+                    <div className="relative w-full h-full">
+                      <img src={coverPreview} alt="Menu Cover Image" className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-black/40 to-black/70 flex items-end p-3">
+                        <span className="text-white text-xs font-semibold drop-shadow">Menu Header Cover Preview</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center p-4">
+                      <ImageIcon size={28} className="text-gray-300 dark:text-slate-600 mx-auto mb-1" />
+                      <p className="text-xs text-gray-400 dark:text-gray-500">No cover image uploaded yet. Default color theme will be used.</p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <label className="relative cursor-pointer">
+                    <Button type="button" variant="secondary" size="sm" loading={coverUploading} className="pointer-events-none">
+                      <Upload size={14} /> {coverPreview ? 'Change Cover Image' : 'Upload Cover Image'}
+                    </Button>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                      onChange={handleCoverUpload}
+                      disabled={coverUploading}
+                    />
+                  </label>
+                  {coverPreview && (
+                    <Button type="button" variant="ghost" size="sm" onClick={removeCover} className="text-red-500 hover:text-red-600 hover:bg-red-50">
+                      <Trash2 size={14} /> Remove Cover
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+
             {/* Theme Customizer */}
             <div className="space-y-4 pt-4 border-t border-gray-100 dark:border-slate-800">
               <div className="flex items-center justify-between">
@@ -347,14 +440,21 @@ export default function SettingsPage() {
 
                   {/* Live Preview Card */}
                   <div className="mt-4 border border-gray-100 dark:border-slate-700 rounded-xl overflow-hidden bg-white dark:bg-slate-800 shadow-sm">
-                    <div className="px-3 py-2 border-b border-gray-100 dark:border-slate-700 flex items-center justify-between" style={{ background: `linear-gradient(to bottom right, ${themeMode === 'custom' ? brandPrimary : '#f97316'}, ${themeMode === 'custom' ? brandSecondary : '#f59e0b'})` }}>
+                    <div
+                      className="px-3 py-3 border-b border-gray-100 dark:border-slate-700 flex items-center justify-between relative bg-cover bg-center"
+                      style={
+                        coverPreview
+                          ? { backgroundImage: `linear-gradient(to bottom, rgba(0,0,0,0.4), rgba(0,0,0,0.7)), url(${coverPreview})` }
+                          : { background: `linear-gradient(to bottom right, ${themeMode === 'custom' ? brandPrimary : '#f97316'}, ${themeMode === 'custom' ? brandSecondary : '#f59e0b'})` }
+                      }
+                    >
                       <div className="flex items-center gap-2">
-                         {logoPreview ? (
-                            <img src={logoPreview} className="w-6 h-6 rounded-lg bg-white p-0.5 object-cover" />
-                         ) : (
-                            <div className="w-6 h-6 rounded-lg bg-white/20"></div>
-                         )}
-                         <span className="text-white text-xs font-bold">Live Preview</span>
+                        {logoPreview ? (
+                          <img src={logoPreview} className="w-6 h-6 rounded-lg bg-white p-0.5 object-cover" />
+                        ) : (
+                          <div className="w-6 h-6 rounded-lg bg-white/20"></div>
+                        )}
+                        <span className="text-white text-xs font-bold">{watch('name') || 'Live Preview'}</span>
                       </div>
                     </div>
                     <div className="p-3 bg-gray-50 dark:bg-slate-800 flex items-center justify-between">
@@ -450,7 +550,7 @@ export default function SettingsPage() {
             <Input
               label="Phone number"
               icon={<Phone size={16} />}
-              placeholder="+91 98765 43210"
+              placeholder="+91 9876543210"
               {...register('phone')}
             />
             <Textarea
