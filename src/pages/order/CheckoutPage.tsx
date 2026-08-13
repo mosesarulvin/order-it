@@ -3,12 +3,12 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { ArrowLeft, Minus, Plus, Trash2, User, Phone, Wallet, Banknote, ChevronRight, ShoppingBag, Clock, Tag, X } from 'lucide-react'
+import { ArrowLeft, Minus, Plus, Trash2, Wallet, Banknote, ChevronRight, ShoppingBag, Clock, Tag, X, User } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { formatCurrency, generateOrderNumber } from '@/lib/utils'
 import { useCartStore } from '@/store/cartStore'
 import { Button } from '@/components/ui/Button'
-import { Input, Textarea } from '@/components/ui/Input'
+import { Textarea } from '@/components/ui/Input'
 import type { Coupon, PaymentMethod } from '@/types'
 import toast from 'react-hot-toast'
 
@@ -38,7 +38,7 @@ export default function CheckoutPage() {
   const orderPlacedRef = useRef(false)
   const { items, updateQuantityAt, removeItemAt, getTotalPrice, clearCart, orderType, setOrderType, getPackingCharge } = useCartStore()
 
-  const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
+  const { register, handleSubmit } = useForm<FormData>({
     resolver: zodResolver(baseSchema),
   })
 

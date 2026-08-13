@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Tag, ShoppingBag, Gift, User, UtensilsCrossed, ChevronRight, LogOut, BellRing, RotateCcw } from 'lucide-react'
+import { ArrowLeft, Tag, ShoppingBag, Gift, User, UtensilsCrossed, ChevronRight, LogOut, RotateCcw } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { useCustomerOrderNotifications } from '@/hooks/useCustomerOrderNotifications'

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Phone, User, Gift, ChevronRight, Search, Lock, Eye, EyeOff } from 'lucide-react'
+import { ArrowLeft, Phone, User, Gift, ChevronRight, Lock, Eye, EyeOff } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/Button'
 import toast from 'react-hot-toast'

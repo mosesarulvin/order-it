@@ -103,9 +103,8 @@ export function sendBrowserNotification(title: string, body: string, icon = '/fa
         icon,
         badge: icon,
         tag: 'order-ready-notification',
-        renotify: true,
         requireInteraction: true,
-      })
+      } as any)
       notif.onclick = () => {
         window.focus()
         notif.close()

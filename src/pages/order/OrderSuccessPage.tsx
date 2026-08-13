@@ -37,7 +37,7 @@ export default function OrderSuccessPage() {
   const [soundBlocked, setSoundBlocked] = useState(false)
   const channelRef = useRef<RealtimeChannel | null>(null)
 
-  const { permission, requestPermission, playSound, triggerReadyAlert } = useCustomerOrderNotifications(slug, orderId)
+  const { playSound, triggerReadyAlert } = useCustomerOrderNotifications(slug, orderId)
 
   // Save order ID with timestamp to recent orders in localStorage
   useEffect(() => {

@@ -5,10 +5,10 @@ import type { CartItem, MenuItem, MenuItemVariant } from '@/types'
 interface CartStore {
   items: CartItem[]
   shopSlug: string | null
-  addItem: (item: MenuItem, customizations?: { group: string; choice: string }[], variant?: MenuItemVariant) => void
-  removeItem: (itemId: string) => void
+  addItem: (item: MenuItem, customizations?: { group: string; choice: string; price: number }[], variant?: MenuItemVariant) => void
+  removeItem: (itemId: string, variantId?: string) => void
   removeItemAt: (index: number) => void
-  updateQuantity: (itemId: string, quantity: number) => void
+  updateQuantity: (itemId: string, quantity: number, variantId?: string) => void
   updateQuantityAt: (index: number, quantity: number) => void
   clearCart: () => void
   setShopSlug: (slug: string) => void
@@ -28,7 +28,7 @@ export const useCartStore = create<CartStore>()(
       orderType: 'dine_in',
       setOrderType: (type) => set({ orderType: type }),
 
-      addItem: (menuItem: MenuItem, customizations: { group: string; choice: string }[] = [], variant?: MenuItemVariant) => {
+      addItem: (menuItem: MenuItem, customizations: { group: string; choice: string; price: number }[] = [], variant?: MenuItemVariant) => {
         set((state) => {
           // Items with customizations are always added as separate entries
           if (customizations.length > 0) {
