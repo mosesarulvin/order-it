@@ -230,12 +230,12 @@ export default function CheckoutPage() {
         <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 overflow-hidden shadow-xs">
           <div className="px-4 py-3 border-b border-gray-50 dark:border-slate-800 flex items-center justify-between">
             <h2 className="font-semibold text-gray-900 dark:text-white text-sm">Your order</h2>
-            <button
+            {/* <button
               onClick={() => navigate(`/order/${slug}`)}
               className="inline-flex items-center gap-1 text-xs font-bold text-brand-primary hover:opacity-80 transition-opacity"
             >
               <Plus size={14} /> Add more items
-            </button>
+            </button> */}
           </div>
           <div className="divide-y divide-gray-50 dark:divide-slate-800">
             {items.map((ci, idx) => {
