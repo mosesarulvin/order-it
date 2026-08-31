@@ -963,7 +963,11 @@ export default function OrderMenuPage() {
                       {hasChoice ? (
                         <>Choose options — {priceLabel}</>
                       ) : (
-                        <><Plus size={16} /> Add — {totalLabel}</>
+                        <>
+                        {/* <Plus size={16} />  */}
+                        Add
+                        {/* — {totalLabel} */}
+                        </>
                       )}
                     </button>
                   </div>
