@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { Search, Filter, ShoppingBag, ChevronDown } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
@@ -8,9 +8,13 @@ import { Input } from '@/components/ui/Input'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { Modal } from '@/components/ui/Modal'
 import { CancelOrderModal } from '@/components/CancelOrderModal'
+import { useDebouncedCallback } from '@/hooks/useDebouncedCallback'
+import { captureException } from '@/lib/observability'
 import type { Order, OrderStatus } from '@/types'
 import toast from 'react-hot-toast'
-import type { RealtimeChannel } from '@supabase/supabase-js'
+import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js'
+
+const PAGE_SIZE = 50
 
 const STATUS_OPTIONS: OrderStatus[] = ['pending', 'confirmed', 'preparing', 'ready', 'completed', 'cancelled']
 
@@ -26,42 +30,113 @@ export default function OrdersPage() {
   const { shop } = useAuth()
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [hasMore, setHasMore] = useState(true)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<OrderStatus | 'all'>('all')
   const [selected, setSelected] = useState<Order | null>(null)
   const [cancelTarget, setCancelTarget] = useState<Order | null>(null)
   const channelRef = useRef<RealtimeChannel | null>(null)
 
-  useEffect(() => {
+  // Fetch the first PAGE_SIZE orders on mount / shop change.
+  const fetchFirstPage = useCallback(async () => {
     if (!shop) return
-    fetchOrders()
-    subscribeToOrders()
-    return () => { channelRef.current?.unsubscribe() }
-  }, [shop])
-
-  const subscribeToOrders = () => {
-    if (!shop) return
-    const channel = supabase
-      .channel(`orders-${shop.id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `shop_id=eq.${shop.id}` }, () => {
-        fetchOrders(true)  // silent — no skeleton flash
-      })
-      .subscribe()
-    channelRef.current = channel
-  }
-
-  const fetchOrders = async (silent = false) => {
-    if (!shop) return
-    if (!silent) setLoading(true)
+    setLoading(true)
     const { data, error } = await supabase
       .from('orders')
       .select('*, items:order_items(*)')
       .eq('shop_id', shop.id)
       .order('created_at', { ascending: false })
-    if (error) { toast.error('Failed to load orders'); console.error(error.message) }
-    setOrders((data as Order[]) || [])
+      .limit(PAGE_SIZE)
+    if (error) {
+      toast.error('Failed to load orders')
+      captureException(error, { where: 'OrdersPage.fetchFirstPage' })
+    }
+    const rows = (data as Order[]) ?? []
+    setOrders(rows)
+    setHasMore(rows.length === PAGE_SIZE)
     setLoading(false)
-  }
+  }, [shop])
+
+  const fetchNextPage = useCallback(async () => {
+    if (!shop || loadingMore || !hasMore) return
+    const cursor = orders[orders.length - 1]?.created_at
+    if (!cursor) return
+    setLoadingMore(true)
+    const { data, error } = await supabase
+      .from('orders')
+      .select('*, items:order_items(*)')
+      .eq('shop_id', shop.id)
+      .lt('created_at', cursor)
+      .order('created_at', { ascending: false })
+      .limit(PAGE_SIZE)
+    if (error) {
+      toast.error('Failed to load more orders')
+      captureException(error, { where: 'OrdersPage.fetchNextPage' })
+    }
+    const rows = (data as Order[]) ?? []
+    setOrders((prev) => [...prev, ...rows])
+    setHasMore(rows.length === PAGE_SIZE)
+    setLoadingMore(false)
+  }, [shop, orders, loadingMore, hasMore])
+
+  // Fetch a single order (with items) — used by realtime INSERT/UPDATE.
+  const fetchOne = useCallback(async (id: string): Promise<Order | null> => {
+    if (!shop) return null
+    const { data } = await supabase
+      .from('orders')
+      .select('*, items:order_items(*)')
+      .eq('id', id)
+      .eq('shop_id', shop.id)
+      .single()
+    return (data as Order) ?? null
+  }, [shop])
+
+  const debouncedRefetchTop = useDebouncedCallback(() => { fetchFirstPage() }, 250)
+
+  const applyRealtimeChange = useCallback(async (payload: RealtimePostgresChangesPayload<Order>) => {
+    if (payload.eventType === 'DELETE') {
+      const oldId = (payload.old as { id?: string } | undefined)?.id
+      if (oldId) setOrders((prev) => prev.filter((o) => o.id !== oldId))
+      return
+    }
+    const newRow = payload.new as Order | undefined
+    if (!newRow?.id) return
+
+    if (payload.eventType === 'UPDATE') {
+      // Patch existing row in place with the fields the payload gave us.
+      setOrders((prev) => prev.map((o) => o.id === newRow.id ? { ...o, ...newRow } : o))
+      setSelected((prev) => prev && prev.id === newRow.id ? { ...prev, ...newRow } : prev)
+      return
+    }
+
+    // INSERT: fetch the row with its items so it renders correctly.
+    const full = await fetchOne(newRow.id)
+    if (full) setOrders((prev) => prev.some((o) => o.id === full.id) ? prev : [full, ...prev])
+  }, [fetchOne])
+
+  useEffect(() => {
+    if (!shop) return
+    fetchFirstPage()
+
+    const channel = supabase
+      .channel(`orders-${shop.id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'orders', filter: `shop_id=eq.${shop.id}` },
+        (payload) => { applyRealtimeChange(payload as RealtimePostgresChangesPayload<Order>) },
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'order_items' },
+        // order_items realtime doesn't carry shop_id, so debounce-refresh the top page.
+        () => { debouncedRefetchTop() },
+      )
+      .subscribe()
+    channelRef.current = channel
+
+    return () => { channel.unsubscribe(); channelRef.current = null }
+  }, [shop, fetchFirstPage, applyRealtimeChange, debouncedRefetchTop])
 
   const updateStatus = async (orderId: string, status: OrderStatus) => {
     if (status === 'cancelled') {
@@ -120,8 +195,8 @@ export default function OrdersPage() {
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Orders</h2>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
             {filtered.length < orders.length
-              ? `Showing ${filtered.length} of ${orders.length} orders`
-              : `${orders.length} total orders`}
+              ? `Showing ${filtered.length} of ${orders.length} loaded orders`
+              : `${orders.length} orders loaded${hasMore ? ' · more available' : ''}`}
           </p>
         </div>
       </div>
@@ -202,6 +277,17 @@ export default function OrdersPage() {
               </CardContent>
             </Card>
           ))}
+          {hasMore && (
+            <div className="pt-2 flex justify-center">
+              <button
+                onClick={() => fetchNextPage()}
+                disabled={loadingMore}
+                className="px-4 py-2 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-slate-800 disabled:opacity-50 transition-colors"
+              >
+                {loadingMore ? 'Loading…' : 'Load older orders'}
+              </button>
+            </div>
+          )}
         </div>
       )}
 

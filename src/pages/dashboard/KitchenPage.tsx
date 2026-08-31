@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { formatCurrency } from '@/lib/utils'
@@ -7,9 +7,11 @@ import { Button } from '@/components/ui/Button'
 import { OrderCardSkeleton } from '@/components/ui/Skeleton'
 import { Bell, CheckCircle, Clock, ChefHat, RefreshCw, ArrowUpDown, Search, ChevronRight, ChevronLeft } from 'lucide-react'
 import { CancelOrderModal } from '@/components/CancelOrderModal'
+import { useDebouncedCallback } from '@/hooks/useDebouncedCallback'
+import { captureException } from '@/lib/observability'
 import type { Order, OrderStatus } from '@/types'
 import toast from 'react-hot-toast'
-import type { RealtimeChannel } from '@supabase/supabase-js'
+import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 
 const ACTIVE_STATUSES: OrderStatus[] = ['pending', 'confirmed', 'preparing', 'ready']
 
@@ -30,6 +32,16 @@ const STATUS_LABELS: Record<OrderStatus, string> = {
   ready:     'Ready',
   completed: 'Completed',
   cancelled: 'Cancelled',
+}
+
+// Only allow forward transitions and cancellation
+const VALID_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
+  pending:   ['confirmed', 'cancelled'],
+  confirmed: ['preparing', 'cancelled'],
+  preparing: ['ready', 'cancelled'],
+  ready:     ['completed', 'cancelled'],
+  completed: [],
+  cancelled: [],
 }
 
 export default function KitchenPage() {
@@ -53,6 +65,7 @@ export default function KitchenPage() {
     return () => {
       channelRef.current?.unsubscribe()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shop])
 
   const fetchOrders = async (silent = false) => {
@@ -64,22 +77,69 @@ export default function KitchenPage() {
       .eq('shop_id', shop.id)
       .in('status', ACTIVE_STATUSES)
       .order('created_at', { ascending: true })
-    if (error) console.error('Kitchen fetchOrders error:', error.message)
+    if (error) {
+      captureException(error, { where: 'KitchenPage.fetchOrders' })
+    }
     setOrders((data as Order[]) || [])
     setLoading(false)
   }
+
+  const fetchOne = useCallback(async (id: string): Promise<Order | null> => {
+    if (!shop) return null
+    const { data } = await supabase
+      .from('orders')
+      .select('*, items:order_items(*)')
+      .eq('id', id)
+      .eq('shop_id', shop.id)
+      .single()
+    return (data as Order) ?? null
+  }, [shop])
+
+  const debouncedRefetch = useDebouncedCallback(() => { fetchOrders(true) }, 300)
+
+  const applyChange = useCallback(async (payload: RealtimePostgresChangesPayload<Order>) => {
+    const newRow = payload.new as Order | undefined
+    const oldId  = (payload.old as { id?: string } | undefined)?.id
+
+    if (payload.eventType === 'DELETE' && oldId) {
+      setOrders((prev) => prev.filter((o) => o.id !== oldId))
+      return
+    }
+    if (!newRow?.id) return
+
+    if (payload.eventType === 'UPDATE') {
+      // If moved to a terminal status, drop from the kitchen board.
+      if (!ACTIVE_STATUSES.includes(newRow.status as OrderStatus)) {
+        setOrders((prev) => prev.filter((o) => o.id !== newRow.id))
+        return
+      }
+      setOrders((prev) => {
+        const existing = prev.find((o) => o.id === newRow.id)
+        if (!existing) {
+          // Row is now active but wasn't in our list — fetch it once.
+          debouncedRefetch()
+          return prev
+        }
+        return prev.map((o) => o.id === newRow.id ? { ...o, ...newRow } : o)
+      })
+      return
+    }
+
+    if (payload.eventType === 'INSERT' && ACTIVE_STATUSES.includes(newRow.status as OrderStatus)) {
+      const full = await fetchOne(newRow.id)
+      if (full) setOrders((prev) => prev.some((o) => o.id === full.id) ? prev : [...prev, full])
+    }
+  }, [fetchOne, debouncedRefetch])
 
   const subscribeToOrders = () => {
     if (!shop) return
     const channel = supabase
       .channel(`kitchen-${shop.id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `shop_id=eq.${shop.id}` }, (payload) => {
-        if (payload.eventType === 'INSERT') {
-          fetchOrders(true)  // silent refresh — no skeleton
-        } else if (payload.eventType === 'UPDATE') {
-          fetchOrders(true)  // silent refresh
-        }
-      })
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'orders', filter: `shop_id=eq.${shop.id}` },
+        (payload) => { applyChange(payload as RealtimePostgresChangesPayload<Order>) },
+      )
       .subscribe()
     channelRef.current = channel
   }
@@ -117,6 +177,10 @@ export default function KitchenPage() {
     if (!order || order.status === targetStatus) return
     if (targetStatus === 'cancelled') {
       setCancelTarget(order)
+      return
+    }
+    if (!VALID_TRANSITIONS[order.status]?.includes(targetStatus)) {
+      toast.error(`Cannot move from ${STATUS_LABELS[order.status]} to ${STATUS_LABELS[targetStatus]}`)
       return
     }
     await updateStatus(order.id, targetStatus)

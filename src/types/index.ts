@@ -13,6 +13,7 @@ export interface Shop {
   tax_percent: number
   coupons_enabled: boolean
   reviews_enabled: boolean
+  ordering_enabled: boolean
   accepts_upi: boolean
   accepts_cash: boolean
   auto_schedule_enabled: boolean
@@ -21,6 +22,11 @@ export interface Shop {
   brand_primary: string | null
   brand_secondary: string | null
   brand_accent: string | null
+  status: 'trial' | 'active' | 'suspended' | 'deleted'
+  plan: 'free' | 'starter' | 'pro' | 'enterprise'
+  trial_ends_at: string | null
+  suspended_at: string | null
+  suspend_reason: string | null
   created_at: string
   updated_at: string
 }
@@ -65,6 +71,7 @@ export interface MenuItem {
   calories: number | null
   image_url: string | null
   is_available: boolean
+  is_display_only: boolean
   is_popular: boolean
   is_instant: boolean
   stock_quantity: number | null
@@ -109,6 +116,7 @@ export interface Order {
   coupon_code: string | null
   order_source: 'qr' | 'walkin'
   customer_profile_id: string | null
+  tracking_token: string | null
   created_at: string
   updated_at: string
   items?: OrderItem[]

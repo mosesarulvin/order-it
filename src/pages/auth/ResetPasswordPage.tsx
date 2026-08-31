@@ -1,24 +1,14 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
 import { Lock, Eye, EyeOff, UtensilsCrossed } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { ThemeToggle } from '@/components/ThemeToggle'
+import { passwordResetSchema, type PasswordResetInput } from '@/lib/validation'
 import toast from 'react-hot-toast'
-
-const schema = z.object({
-  password: z.string().min(6, 'Password must be at least 6 characters'),
-  confirmPassword: z.string(),
-}).refine((d) => d.password === d.confirmPassword, {
-  message: 'Passwords do not match',
-  path: ['confirmPassword'],
-})
-
-type FormData = z.infer<typeof schema>
 
 export default function ResetPasswordPage() {
   const navigate = useNavigate()
@@ -26,25 +16,23 @@ export default function ResetPasswordPage() {
   const [loading, setLoading] = useState(false)
   const [validLink, setValidLink] = useState<boolean | null>(null)
 
-  const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
-    resolver: zodResolver(schema),
+  const { register, handleSubmit, formState: { errors } } = useForm<PasswordResetInput>({
+    resolver: zodResolver(passwordResetSchema),
   })
 
   useEffect(() => {
-    // Supabase sets the session from the URL hash on RECOVERY events
-    supabase.auth.onAuthStateChange((event) => {
-      if (event === 'PASSWORD_RECOVERY') {
-        setValidLink(true)
-      }
+    // Supabase populates the session from the URL hash on RECOVERY events.
+    const { data: sub } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') setValidLink(true)
     })
-    // If no recovery event fires within 2s the link is invalid/expired
-    const timer = setTimeout(() => {
-      setValidLink((v) => v === null ? false : v)
-    }, 2000)
-    return () => clearTimeout(timer)
+    const timer = setTimeout(() => setValidLink((v) => v === null ? false : v), 2000)
+    return () => {
+      clearTimeout(timer)
+      sub.subscription.unsubscribe()
+    }
   }, [])
 
-  const onSubmit = async (data: FormData) => {
+  const onSubmit = async (data: PasswordResetInput) => {
     setLoading(true)
     const { error } = await supabase.auth.updateUser({ password: data.password })
     setLoading(false)
@@ -92,7 +80,7 @@ export default function ResetPasswordPage() {
                   </div>
                   <input
                     type={showPassword ? 'text' : 'password'}
-                    placeholder="At least 6 characters"
+                    placeholder="At least 8 characters, letters + numbers"
                     autoComplete="new-password"
                     className="w-full h-10 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-950 pl-10 pr-10 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100 dark:focus:ring-orange-900/50"
                     {...register('password')}

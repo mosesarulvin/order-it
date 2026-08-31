@@ -1,307 +1,178 @@
-import { useState, useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
-import { ArrowLeft, Minus, Plus, Trash2, Wallet, Banknote, ChevronRight, ShoppingBag, Clock, Tag, X, User } from 'lucide-react'
+import {
+  ArrowLeft, Minus, Plus, Trash2, ChevronRight, ShoppingBag, Clock, Tag, X,
+} from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import { formatCurrency, generateOrderNumber } from '@/lib/utils'
+import { formatCurrency } from '@/lib/utils'
 import { useCartStore } from '@/store/cartStore'
 import { Button } from '@/components/ui/Button'
-import { Textarea } from '@/components/ui/Input'
-import type { Coupon, PaymentMethod } from '@/types'
+import { getSessionToken, getCachedIdentity } from '@/lib/customerSession'
+import { placeCustomerOrder, humanizeError } from '@/lib/api/customerOrders'
+import type { PaymentMethod } from '@/types'
 import toast from 'react-hot-toast'
 
-// Base schema — phone validation added dynamically based on anonymous toggle
-const baseSchema = z.object({
-  notes: z.string().max(200, 'Notes must be 200 characters or less').optional(),
-})
+interface ShopMeta {
+  id:               string
+  tax_percent:      number
+  is_open:          boolean
+  ordering_enabled: boolean
+  coupons_enabled:  boolean
+  accepts_upi:      boolean
+  accepts_cash:     boolean
+}
 
-type FormData = z.infer<typeof baseSchema>
+interface CouponPreview {
+  code:             string
+  type:             'percentage' | 'fixed'
+  value:            number
+  min_order_amount: number
+}
 
 export default function CheckoutPage() {
   const { slug } = useParams<{ slug: string }>()
   const navigate = useNavigate()
+
+  const [shop, setShop] = useState<ShopMeta | null>(null)
+  const [shopLoaded, setShopLoaded] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash')
+  const [notes, setNotes] = useState('')
   const [loading, setLoading] = useState(false)
-  const [shopId, setShopId] = useState<string | null>(null)
-  const [taxPercent, setTaxPercent] = useState(0)
-  const [shopOpen, setShopOpen] = useState<boolean | null>(null)
-  const [couponsEnabled, setCouponsEnabled] = useState(true)
-  const [acceptsUpi, setAcceptsUpi] = useState(true)
-  const [acceptsCash, setAcceptsCash] = useState(true)
-  const [isAnonymous] = useState(false)
   const [couponInput, setCouponInput] = useState('')
-  const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null)
+  const [appliedCoupon, setAppliedCoupon] = useState<CouponPreview | null>(null)
   const [couponLoading, setCouponLoading] = useState(false)
-  const [profile, setProfile] = useState<{ id: string; name: string; phone: string } | null>(null)
   const orderPlacedRef = useRef(false)
-  const { items, updateQuantityAt, removeItemAt, getTotalPrice, clearCart, orderType, setOrderType, getPackingCharge } = useCartStore()
 
-  const { register, handleSubmit } = useForm<FormData>({
-    resolver: zodResolver(baseSchema),
-  })
+  const identity = slug ? getCachedIdentity(slug) : null
+  const sessionToken = slug ? getSessionToken(slug) : null
+  const isAnonymous = !sessionToken
 
+  const {
+    items, updateQuantityAt, removeItemAt, getTotalPrice, clearCart,
+    orderType, setOrderType, getPackingCharge,
+  } = useCartStore()
+
+  // Load shop metadata.
   useEffect(() => {
     if (!slug) return
-    supabase.from('shops').select('id, tax_percent, is_open, coupons_enabled, accepts_upi, accepts_cash').eq('slug', slug).single()
+    let cancelled = false
+    supabase
+      .from('shops')
+      .select('id, tax_percent, is_open, ordering_enabled, coupons_enabled, accepts_upi, accepts_cash')
+      .eq('slug', slug)
+      .single()
       .then(({ data }) => {
+        if (cancelled) return
         if (data) {
-          setShopId(data.id)
-          setTaxPercent(data.tax_percent)
-          setShopOpen(data.is_open)
-          setCouponsEnabled(data.coupons_enabled ?? true)
-          setAcceptsUpi(data.accepts_upi ?? true)
-          setAcceptsCash(data.accepts_cash ?? true)
-
+          setShop(data)
           if (data.accepts_upi && !data.accepts_cash) setPaymentMethod('upi')
           else if (!data.accepts_upi && data.accepts_cash) setPaymentMethod('cash')
         }
-        else { setShopOpen(false) }
+        setShopLoaded(true)
       })
-
-    const profileId = localStorage.getItem(`profile-${slug}`)
-    if (profileId) {
-      supabase.from('customer_profiles').select('id, name, phone').eq('id', profileId).single()
-        .then(({ data }) => {
-          if (data) setProfile(data)
-        })
-    }
+    return () => { cancelled = true }
   }, [slug])
 
-  // Auto-apply profile welcome coupon if customer has a profile with an unused coupon
+  // If the shop has disabled online ordering, bounce the customer back to the menu.
   useEffect(() => {
-    if (!slug) return
-    if (appliedCoupon) return
-    const profileId = localStorage.getItem(`profile-${slug}`)
-    // Check for a coupon hint set by "Use Now" on ProfileDashboardPage
-    const pendingCoupon = localStorage.getItem(`pending-coupon-${slug}`)
-    const couponCodeToApply = pendingCoupon || null
-
-    const applyCode = (code: string) => {
-      if (!shopId) return
-      supabase
-        .from('coupons')
-        .select('*')
-        .eq('code', code)
-        .eq('shop_id', shopId)
-        .eq('is_active', true)
-        .maybeSingle()
-        .then(({ data: coupon }) => {
-          if (coupon) {
-            setCouponInput(coupon.code)
-            setAppliedCoupon(coupon as import('@/types').Coupon)
-            if (pendingCoupon) localStorage.removeItem(`pending-coupon-${slug}`)
-          }
-        })
+    if (shop && shop.ordering_enabled === false && slug) {
+      toast.error('This menu is view-only — please order at the counter')
+      navigate(`/order/${slug}`, { replace: true })
     }
+  }, [shop, slug, navigate])
 
-    if (couponCodeToApply) {
-      applyCode(couponCodeToApply)
-      return
-    }
+  // Auto-apply pending profile coupon (set by "Use Now" button on dashboard).
+  useEffect(() => {
+    if (!slug || !shop || appliedCoupon) return
+    const pending = localStorage.getItem(`pending-coupon-${slug}`)
+    if (!pending) return
 
-    if (!profileId) return
-    supabase
-      .from('profile_coupons')
-      .select('coupon_code, coupon_id')
-      .eq('profile_id', profileId)
-      .is('used_at', null)
-      .limit(1)
-      .maybeSingle()
+    supabase.rpc('preview_coupon', { p_shop_id: shop.id, p_code: pending })
       .then(({ data }) => {
-        if (!data?.coupon_code) return
-        applyCode(data.coupon_code)
+        if (data) {
+          setAppliedCoupon(data as CouponPreview)
+          setCouponInput((data as CouponPreview).code)
+          localStorage.removeItem(`pending-coupon-${slug}`)
+        }
       })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [slug])
+  }, [slug, shop, appliedCoupon])
 
-  // Redirect to menu if cart is empty (e.g. direct URL access)
-  // Skip if an order was just placed — navigate() to success page will take over
+  // Redirect to menu if cart is empty.
   useEffect(() => {
     if (items.length === 0 && slug && !orderPlacedRef.current) {
       navigate(`/order/${slug}`, { replace: true })
     }
   }, [items.length, slug, navigate])
 
-  const subtotal = getTotalPrice()
-  const packingCharge = getPackingCharge()
-  const taxAmount = Math.round((subtotal + packingCharge) * taxPercent) / 100
-  const discountAmount = appliedCoupon
-    ? appliedCoupon.type === 'percentage'
+  const subtotal        = getTotalPrice()
+  const packingCharge   = getPackingCharge()
+  const taxPercent      = shop?.tax_percent ?? 0
+  const taxAmount       = useMemo(
+    () => Math.round((subtotal + packingCharge) * taxPercent) / 100,
+    [subtotal, packingCharge, taxPercent],
+  )
+  const discountAmount  = useMemo(() => {
+    if (!appliedCoupon) return 0
+    return appliedCoupon.type === 'percentage'
       ? Math.round((subtotal + packingCharge) * appliedCoupon.value) / 100
       : Math.min(appliedCoupon.value, subtotal + packingCharge)
-    : 0
+  }, [appliedCoupon, subtotal, packingCharge])
   const total = Math.max(0, subtotal + packingCharge + taxAmount - discountAmount)
 
   const applyCoupon = async () => {
     const code = couponInput.trim().toUpperCase()
-    if (!code) return
-    if (!shopId) { toast.error('Shop not loaded yet'); return }
+    if (!code || !shop) return
     setCouponLoading(true)
-    const { data, error } = await supabase
-      .from('coupons')
-      .select('*')
-      .eq('shop_id', shopId)
-      .eq('code', code)
-      .eq('is_active', true)
-      .single()
-    setCouponLoading(false)
-    if (error || !data) { toast.error('Invalid or inactive coupon code'); return }
-    if (data.expires_at && new Date(data.expires_at) < new Date()) { toast.error('This coupon has expired'); return }
-    if (data.max_uses !== null && data.used_count >= data.max_uses) { toast.error('This coupon has reached its usage limit'); return }
-    if (subtotal < data.min_order_amount) {
-      toast.error(`Minimum order of ${formatCurrency(data.min_order_amount)} required for this coupon`)
-      return
+    try {
+      const { data, error } = await supabase.rpc('preview_coupon', { p_shop_id: shop.id, p_code: code })
+      if (error || !data) { toast.error('Invalid or inactive coupon code'); return }
+      const c = data as CouponPreview
+      if (subtotal < c.min_order_amount) {
+        toast.error(`Minimum order of ${formatCurrency(c.min_order_amount)} required for this coupon`)
+        return
+      }
+      setAppliedCoupon(c)
+      toast.success('Coupon applied! 🎉')
+    } finally {
+      setCouponLoading(false)
     }
-    setAppliedCoupon(data as Coupon)
-    toast.success(`Coupon applied! 🎉`)
   }
 
   const removeCoupon = () => { setAppliedCoupon(null); setCouponInput('') }
 
-  const onSubmit = async (data: FormData) => {
+  const onSubmit = async () => {
+    if (!shop) { toast.error('Shop not loaded'); return }
     if (items.length === 0) { toast.error('Your cart is empty'); return }
-    if (!shopId) { toast.error('Shop not found'); return }
-
-    // Re-validate coupon min_order_amount at submit time (cart may have changed since coupon applied)
-    if (appliedCoupon) {
-      const currentSubtotal = getTotalPrice()
-      if (currentSubtotal < appliedCoupon.min_order_amount) {
-        toast.error(`Coupon requires a minimum order of ${formatCurrency(appliedCoupon.min_order_amount)}`)
-        setAppliedCoupon(null)
-        setCouponInput('')
-        return
-      }
+    if (!shop.accepts_upi && !shop.accepts_cash) {
+      toast.error('No payment methods are available for this shop')
+      return
     }
 
     setLoading(true)
-
     try {
-      // Re-validate availability
-      const itemIds = items.map((ci) => ci.menu_item.id)
-      const { data: menuItems, error: availErr } = await supabase
-        .from('menu_items')
-        .select('id, is_available, name, is_instant, stock_quantity')
-        .in('id', itemIds)
-      if (availErr) throw new Error('Could not verify item availability')
-      const unavailable = (menuItems ?? []).filter((m) => !m.is_available)
-      if (unavailable.length > 0) {
-        toast.error(`Some items are no longer available: ${unavailable.map((m) => m.name).join(', ')}`)
-        setLoading(false)
-        return
-      }
-
-      // Check stock for tracked items
-      for (const ci of items) {
-        const m = (menuItems ?? []).find((m) => m.id === ci.menu_item.id)
-        if (m && m.stock_quantity !== null && ci.quantity > m.stock_quantity) {
-          toast.error(`Not enough stock for "${ci.menu_item.name}" (only ${m.stock_quantity} left)`)
-          setLoading(false)
-          return
-        }
-      }
-
-      // If every item is instant → order goes straight to 'ready'
-      const allInstant = (menuItems ?? []).every((m) => m.is_instant)
-      const orderStatus = allInstant ? 'ready' : 'pending'
-
-      const orderNumber = generateOrderNumber()
-
-      const profileId = localStorage.getItem(`profile-${slug}`)
-
-      const { data: order, error: orderErr } = await supabase
-        .from('orders')
-        .insert({
-          shop_id: shopId,
-          order_number: orderNumber,
-          customer_name: profile ? profile.name : 'Unknown',
-          customer_phone: profile ? profile.phone : '',
-          notes: data.notes || null,
-          status: orderStatus,
-          payment_method: paymentMethod,
-          payment_status: 'pending',
-          order_type: orderType,
-          is_anonymous: isAnonymous,
-          order_source: 'qr',
-          coupon_code: appliedCoupon?.code ?? null,
-          discount_amount: discountAmount,
-          subtotal,
-          tax_amount: taxAmount,
-          packing_charge: packingCharge,
-          total,
-          customer_profile_id: profileId || null,
-        })
-        .select()
-        .single()
-
-      if (orderErr || !order) throw new Error(orderErr?.message || 'Failed to create order')
-
-      // Insert order items with customizations
-      const orderItems = items.map((ci) => ({
-        order_id: order.id,
-        menu_item_id: ci.menu_item.id,
-        name: ci.menu_item.name,
-        price: ci.menu_item.price,
-        quantity: ci.quantity,
-        subtotal: ci.menu_item.price * ci.quantity,
-        customizations: ci.customizations ?? [],
-      }))
-
-      const { error: itemsErr } = await supabase.from('order_items').insert(orderItems)
-      if (itemsErr) throw new Error(itemsErr.message)
-
-      // Deduct stock for tracked items
-      for (const ci of items) {
-        const m = (menuItems ?? []).find((m) => m.id === ci.menu_item.id)
-        if (m && m.stock_quantity !== null) {
-          await supabase
-            .from('menu_items')
-            .update({ stock_quantity: Math.max(0, m.stock_quantity - ci.quantity) })
-            .eq('id', ci.menu_item.id)
-          await supabase.from('stock_logs').insert({
-            shop_id: shopId,
-            menu_item_id: ci.menu_item.id,
-            item_name: ci.menu_item.name,
-            delta: -ci.quantity,
-            reason: 'order',
-            note: orderNumber,
-          })
-        }
-      }
-
-      // Increment coupon usage
-      if (appliedCoupon) {
-        await supabase
-          .from('coupons')
-          .update({ used_count: appliedCoupon.used_count + 1 })
-          .eq('id', appliedCoupon.id)
-
-        // Mark profile coupon as used if it came from a profile
-        const profileId = localStorage.getItem(`profile-${slug}`)
-        if (profileId) {
-          await supabase
-            .from('profile_coupons')
-            .update({ used_at: new Date().toISOString(), used_order_id: order.id })
-            .eq('profile_id', profileId)
-            .eq('coupon_code', appliedCoupon.code)
-            .is('used_at', null)
-        }
-      }
+      const placed = await placeCustomerOrder({
+        shopId:        shop.id,
+        sessionToken:  sessionToken,
+        items,
+        orderType,
+        paymentMethod,
+        notes:         notes.trim() || null,
+        couponCode:    appliedCoupon?.code ?? null,
+        isAnonymous,
+      })
 
       orderPlacedRef.current = true
+      localStorage.setItem(`tracking-${placed.order_id}`, placed.tracking_token)
       clearCart()
-      navigate(`/order/${slug}/success/${order.id}`)
+      navigate(`/order/${slug}/success/${placed.order_id}`)
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Something went wrong'
-      toast.error(msg)
+      toast.error(humanizeError(err))
     } finally {
       setLoading(false)
     }
   }
 
-  // Still loading shop info — show spinner instead of the form
-  if (shopOpen === null) {
+  if (!shopLoaded) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-slate-950">
         <div className="w-10 h-10 border-4 border-brand-primary-light border-t-[var(--brand-primary)] rounded-full animate-spin" />
@@ -309,7 +180,7 @@ export default function CheckoutPage() {
     )
   }
 
-  if (shopOpen === false && !items.every((ci) => ci.menu_item.is_instant)) {
+  if (shop && !shop.is_open && !items.every((ci) => ci.menu_item.is_instant)) {
     return (
       <div className="min-h-screen flex items-center justify-center p-8 text-center bg-gray-50 dark:bg-slate-950">
         <div>
@@ -332,10 +203,7 @@ export default function CheckoutPage() {
         <div>
           <ShoppingBag size={64} className="text-gray-200 dark:text-slate-700 mx-auto mb-4" />
           <h2 className="text-xl font-bold text-gray-900 dark:text-white">Your cart is empty</h2>
-          <button
-            onClick={() => navigate(`/order/${slug}`)}
-            className="mt-4 text-brand-accent dark:text-brand-primary font-medium"
-          >
+          <button onClick={() => navigate(`/order/${slug}`)} className="mt-4 text-brand-accent dark:text-brand-primary font-medium">
             ← Back to menu
           </button>
         </div>
@@ -345,7 +213,6 @@ export default function CheckoutPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-slate-950">
-      {/* Header */}
       <div className="bg-white dark:bg-slate-900 border-b border-gray-100 dark:border-slate-800 sticky top-0 z-10">
         <div className="max-w-lg mx-auto px-4 h-14 flex items-center gap-3">
           <button
@@ -360,75 +227,86 @@ export default function CheckoutPage() {
 
       <div className="max-w-lg mx-auto px-4 py-5 space-y-4 pb-32">
         {/* Cart items */}
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-50 dark:border-slate-800">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 overflow-hidden shadow-xs">
+          <div className="px-4 py-3 border-b border-gray-50 dark:border-slate-800 flex items-center justify-between">
             <h2 className="font-semibold text-gray-900 dark:text-white text-sm">Your order</h2>
+            <button
+              onClick={() => navigate(`/order/${slug}`)}
+              className="inline-flex items-center gap-1 text-xs font-bold text-brand-primary hover:opacity-80 transition-opacity"
+            >
+              <Plus size={14} /> Add more items
+            </button>
           </div>
           <div className="divide-y divide-gray-50 dark:divide-slate-800">
-            {items.map((ci, idx) => (
-              <div key={`${ci.menu_item.id}-${idx}`} className="px-4 py-3 flex items-center gap-3">
-                {ci.menu_item.image_url ? (
-                  <img src={ci.menu_item.image_url} alt={ci.menu_item.name} className="w-12 h-12 rounded-xl object-cover flex-shrink-0" />
-                ) : (
-                  <div className="w-12 h-12 rounded-xl bg-brand-primary-lighter flex items-center justify-center flex-shrink-0 text-xl">🍽️</div>
-                )}
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{ci.menu_item.name}</p>
-                  {ci.variant && (
-                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                      {ci.variant.size} {ci.variant.unit || ci.menu_item.unit || ''}
-                    </div>
+            {items.map((ci, idx) => {
+              const unit = (ci.variant?.price ?? ci.menu_item.price)
+                + (ci.customizations?.reduce((s, c) => s + (c.price || 0), 0) || 0)
+              return (
+                <div key={`${ci.menu_item.id}-${idx}`} className="px-4 py-3 flex items-center gap-3">
+                  {ci.menu_item.image_url ? (
+                    <img src={ci.menu_item.image_url} alt={ci.menu_item.name} loading="lazy" className="w-12 h-12 rounded-xl object-cover flex-shrink-0" />
+                  ) : (
+                    <div className="w-12 h-12 rounded-xl bg-brand-primary-lighter flex items-center justify-center flex-shrink-0 text-xl">🍽️</div>
                   )}
-                  {ci.customizations.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {ci.customizations.map((c, i) => (
-                        <span key={i} className="text-xs bg-brand-accent-light dark:bg-brand-primary-shadow text-brand-primary-dark dark:text-brand-primary px-1.5 py-0.5 rounded-full">
-                          {c.choice} {c.price > 0 && `(+₹${c.price})`}
-                        </span>
-                      ))}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{ci.menu_item.name}</p>
+                    {ci.variant && (
+                      <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                        {ci.variant.size} {ci.variant.unit || ci.menu_item.unit || ''}
+                      </div>
+                    )}
+                    {ci.customizations.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {ci.customizations.map((c, i) => (
+                          <span key={i} className="text-xs bg-brand-accent-light dark:bg-brand-primary-shadow text-brand-primary-dark dark:text-brand-primary px-1.5 py-0.5 rounded-full">
+                            {c.choice} {c.price > 0 && `(+₹${c.price})`}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    <p className="text-sm font-semibold text-brand-accent dark:text-brand-primary mt-0.5">
+                      {formatCurrency(unit)}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5 bg-gray-50 dark:bg-slate-800 rounded-xl p-1">
+                      <button
+                        onClick={() => updateQuantityAt(idx, ci.quantity - 1)}
+                        className="w-6 h-6 flex items-center justify-center rounded-lg bg-white dark:bg-slate-700 text-gray-500 dark:text-gray-300 shadow-sm text-xs"
+                      >
+                        <Minus size={12} />
+                      </button>
+                      <span className="w-4 text-center text-sm font-bold dark:text-white">{ci.quantity}</span>
+                      <button
+                        onClick={() => updateQuantityAt(idx, ci.quantity + 1)}
+                        className="w-6 h-6 flex items-center justify-center rounded-lg bg-brand-primary text-white shadow-sm text-xs"
+                      >
+                        <Plus size={12} />
+                      </button>
                     </div>
-                  )}
-                  <p className="text-sm font-semibold text-brand-accent dark:text-brand-primary mt-0.5">
-                    {formatCurrency((ci.variant ? ci.variant.price : ci.menu_item.price) + (ci.customizations?.reduce((sum, c) => sum + (c.price || 0), 0) || 0))}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-1.5 bg-gray-50 dark:bg-slate-800 rounded-xl p-1">
-                    <button
-                      onClick={() => updateQuantityAt(idx, ci.quantity - 1)}
-                      className="w-6 h-6 flex items-center justify-center rounded-lg bg-white dark:bg-slate-700 text-gray-500 dark:text-gray-300 shadow-sm text-xs"
-                    >
-                      <Minus size={12} />
-                    </button>
-                    <span className="w-4 text-center text-sm font-bold dark:text-white">{ci.quantity}</span>
-                    <button
-                      onClick={() => updateQuantityAt(idx, ci.quantity + 1)}
-                      className="w-6 h-6 flex items-center justify-center rounded-lg bg-brand-primary text-white shadow-sm text-xs"
-                    >
-                      <Plus size={12} />
+                    <button onClick={() => removeItemAt(idx)} className="p-1.5 text-gray-300 dark:text-gray-500 hover:text-red-400 dark:hover:text-red-500 transition-colors">
+                      <Trash2 size={14} />
                     </button>
                   </div>
-                  <button onClick={() => removeItemAt(idx)} className="p-1.5 text-gray-300 dark:text-gray-500 hover:text-red-400 dark:hover:text-red-500 transition-colors">
-                    <Trash2 size={14} />
-                  </button>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
+
+          <div className="p-3 bg-gray-50/70 dark:bg-slate-800/40 border-t border-gray-100 dark:border-slate-800">
+            <button
+              onClick={() => navigate(`/order/${slug}`)}
+              className="w-full py-2 px-3 border border-dashed border-brand-primary/40 hover:border-brand-primary text-brand-primary bg-brand-primary/5 dark:bg-brand-primary/10 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all active:scale-[0.99]"
+            >
+              <Plus size={14} /> Add more items from menu
+            </button>
+          </div>
+
+          {/* Totals */}
           <div className="px-4 py-3 bg-gray-50 dark:bg-slate-800 space-y-1.5 border-t border-gray-100 dark:border-slate-700">
-            <div className="flex justify-between text-sm text-gray-500 dark:text-gray-400">
-              <span>Subtotal</span><span>{formatCurrency(subtotal)}</span>
-            </div>
-            {packingCharge > 0 && (
-              <div className="flex justify-between text-sm text-gray-500 dark:text-gray-400">
-                <span>Packing Charge</span><span>{formatCurrency(packingCharge)}</span>
-              </div>
-            )}
-            {taxAmount > 0 && (
-              <div className="flex justify-between text-sm text-gray-500 dark:text-gray-400">
-                <span>Tax ({taxPercent}%)</span><span>{formatCurrency(taxAmount)}</span>
-              </div>
-            )}
+            <Row label="Subtotal" value={formatCurrency(subtotal)} />
+            {packingCharge > 0 && <Row label="Packing Charge" value={formatCurrency(packingCharge)} />}
+            {taxAmount    > 0 && <Row label={`Tax (${taxPercent}%)`} value={formatCurrency(taxAmount)} />}
             {discountAmount > 0 && (
               <div className="flex justify-between text-sm text-green-600 dark:text-green-400 font-medium">
                 <span className="flex items-center gap-1"><Tag size={12} /> {appliedCoupon?.code}</span>
@@ -438,20 +316,10 @@ export default function CheckoutPage() {
             <div className="flex justify-between font-bold text-gray-900 dark:text-white pt-1 border-t border-gray-200 dark:border-slate-600">
               <span>Total</span><span className="text-brand-accent dark:text-brand-primary">{formatCurrency(total)}</span>
             </div>
-            
-            <div className="pt-3 pb-1">
-              <button
-                type="button"
-                onClick={() => navigate(`/order/${slug}`)}
-                className="w-full h-10 rounded-xl border-2 border-dashed border-gray-200 dark:border-slate-600 text-gray-500 dark:text-gray-400 font-medium text-sm hover:border-brand-primary hover:text-brand-primary dark:hover:border-brand-primary dark:hover:text-brand-primary transition-colors flex items-center justify-center gap-2"
-              >
-                <Plus size={16} /> Add more items
-              </button>
-            </div>
           </div>
 
-          {/* Coupon input — only shown when coupons are enabled for this shop */}
-          {couponsEnabled && (
+          {/* Coupon */}
+          {shop?.coupons_enabled && (
             <div className="px-4 py-3 border-t border-gray-100 dark:border-slate-700 bg-white dark:bg-slate-900">
               {appliedCoupon ? (
                 <div className="flex items-center justify-between bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl px-3 py-2">
@@ -486,135 +354,84 @@ export default function CheckoutPage() {
           )}
         </div>
 
+        {/* Order type + payment */}
         <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-4 space-y-4">
-          <h2 className="font-semibold text-gray-900 dark:text-white text-sm">Order Type</h2>
-          <div className="flex bg-gray-50 dark:bg-slate-800 p-1 rounded-xl">
-            <button
-              type="button"
-              onClick={() => setOrderType('dine_in')}
-              className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all ${orderType === 'dine_in' ? 'bg-white dark:bg-slate-700 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400'}`}
-            >
-              Dine-in
-            </button>
-            <button
-              type="button"
-              onClick={() => setOrderType('takeaway')}
-              className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all ${orderType === 'takeaway' ? 'bg-white dark:bg-slate-700 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400'}`}
-            >
-              Takeaway
-            </button>
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-4 space-y-4">
-          <h2 className="font-semibold text-gray-900 dark:text-white text-sm">Your details</h2>
-          
-          {!profile ? (
-            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/60 rounded-2xl p-4 text-center">
-              <p className="text-sm font-semibold text-amber-900 dark:text-amber-100 mb-1">Sign in to place order</p>
-              <p className="text-xs text-amber-700 dark:text-amber-300 mb-4">You must have a profile to order online so you can track your orders.</p>
-              <button
-                type="button"
-                onClick={() => navigate(`/order/${slug}/profile`)}
-                className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-all shadow-md active:scale-95"
-              >
-                Sign In / Create Profile
-              </button>
-            </div>
-          ) : (
-            <div className="bg-gray-50 dark:bg-slate-800 rounded-2xl p-4 flex items-center justify-between border border-gray-100 dark:border-slate-700">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-brand-primary-lighter dark:bg-brand-primary/20 rounded-full flex items-center justify-center">
-                  <User size={20} className="text-brand-primary" />
-                </div>
-                <div>
-                  <p className="font-semibold text-gray-900 dark:text-white text-sm">{profile.name}</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">{profile.phone}</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => navigate(`/order/${slug}/profile/${profile.id}`)}
-                className="text-xs font-semibold text-brand-primary hover:underline"
-              >
-                View Profile
-              </button>
-            </div>
-          )}
-
-          <Textarea
-            label="Special instructions (optional)"
-            placeholder="e.g. Less sugar, extra shot..."
-            {...register('notes')}
-          />
-        </div>
-
-        {/* Payment method */}
-        {profile && (acceptsUpi || acceptsCash) && (
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-4 space-y-3">
-            <h2 className="font-semibold text-gray-900 dark:text-white text-sm">How would you like to pay?</h2>
-            <div className={`grid gap-3 ${acceptsUpi && acceptsCash ? 'grid-cols-2' : 'grid-cols-1'}`}>
-              {acceptsUpi && (
+          <div>
+            <h2 className="font-semibold text-gray-900 dark:text-white text-sm mb-2">Order Type</h2>
+            <div className="flex gap-2">
+              {(['dine_in', 'takeaway'] as const).map((t) => (
                 <button
-                  onClick={() => setPaymentMethod('upi')}
-                  className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${paymentMethod === 'upi'
-                    ? 'border-brand-primary bg-brand-primary-lighter dark:bg-brand-primary-shadow'
-                    : 'border-gray-200 dark:border-slate-700 hover:border-gray-300 dark:hover:border-slate-600'
-                    }`}
+                  key={t}
+                  onClick={() => setOrderType(t)}
+                  className={`flex-1 py-2.5 rounded-xl text-sm font-semibold border ${orderType === t ? 'bg-brand-primary text-white border-brand-primary' : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-slate-700'}`}
                 >
-                  <Wallet size={24} className={paymentMethod === 'upi' ? 'text-brand-primary' : 'text-gray-400 dark:text-gray-500'} />
-                  <div>
-                    <p className={`text-sm font-semibold ${paymentMethod === 'upi' ? 'text-brand-primary-dark dark:text-brand-primary' : 'text-gray-700 dark:text-gray-300'}`}>Pay Online</p>
-                    <p className="text-xs text-gray-400 dark:text-gray-500">UPI / Card</p>
-                  </div>
+                  {t === 'dine_in' ? 'Dine-in' : 'Takeaway'}
                 </button>
-              )}
-              {acceptsCash && (
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <h2 className="font-semibold text-gray-900 dark:text-white text-sm mb-2">Payment</h2>
+            <div className="flex gap-2">
+              {shop?.accepts_cash && (
                 <button
                   onClick={() => setPaymentMethod('cash')}
-                  className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${paymentMethod === 'cash'
-                    ? 'border-brand-primary bg-brand-primary-lighter dark:bg-brand-primary-shadow'
-                    : 'border-gray-200 dark:border-slate-700 hover:border-gray-300 dark:hover:border-slate-600'
-                    }`}
+                  className={`flex-1 py-2.5 rounded-xl text-sm font-semibold border ${paymentMethod === 'cash' ? 'bg-brand-primary text-white border-brand-primary' : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-slate-700'}`}
                 >
-                  <Banknote size={24} className={paymentMethod === 'cash' ? 'text-brand-primary' : 'text-gray-400 dark:text-gray-500'} />
-                  <div>
-                    <p className={`text-sm font-semibold ${paymentMethod === 'cash' ? 'text-brand-primary-dark dark:text-brand-primary' : 'text-gray-700 dark:text-gray-300'}`}>Pay at Counter</p>
-                    <p className="text-xs text-gray-400 dark:text-gray-500">Cash / UPI QR</p>
-                  </div>
+                  💵 Cash
+                </button>
+              )}
+              {shop?.accepts_upi && (
+                <button
+                  onClick={() => setPaymentMethod('upi')}
+                  className={`flex-1 py-2.5 rounded-xl text-sm font-semibold border ${paymentMethod === 'upi' ? 'bg-brand-primary text-white border-brand-primary' : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-slate-700'}`}
+                >
+                  📱 UPI
                 </button>
               )}
             </div>
-            {paymentMethod === 'upi' && acceptsUpi && (
-              <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-3 text-xs text-blue-700 dark:text-blue-400 border border-blue-100 dark:border-blue-800">
-                💳 You'll be redirected to pay {formatCurrency(total)} via UPI / Card after placing your order.
-              </div>
-            )}
-            {paymentMethod === 'cash' && acceptsCash && (
-              <div className="bg-green-50 dark:bg-green-900/20 rounded-xl p-3 text-xs text-green-700 dark:text-green-400 border border-green-100 dark:border-green-800">
-                💵 Place your order now and pay at the counter when you collect it.
-              </div>
-            )}
           </div>
+
+          <div>
+            <h2 className="font-semibold text-gray-900 dark:text-white text-sm mb-2">Notes (optional)</h2>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value.slice(0, 200))}
+              placeholder="Any special instructions?"
+              rows={2}
+              className="w-full px-3 py-2 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-sm outline-none focus-brand resize-none"
+            />
+          </div>
+        </div>
+
+        {identity && (
+          <p className="text-xs text-center text-gray-500 dark:text-gray-400">
+            Ordering as <strong>{identity.name}</strong> ({identity.phone})
+          </p>
         )}
       </div>
 
-      {/* Place order button */}
-      {profile && (
-        <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-slate-900 border-t border-gray-100 dark:border-slate-800 p-4">
-          <div className="max-w-lg mx-auto">
-            <Button
-              className="w-full"
-              size="lg"
-              loading={loading}
-              onClick={handleSubmit(onSubmit)}
-            >
-              <span>Place Order · {formatCurrency(total)}</span>
-              <ChevronRight size={18} className="ml-1" />
-            </Button>
-          </div>
+      <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-slate-900 border-t border-gray-100 dark:border-slate-800 px-4 py-3">
+        <div className="max-w-lg mx-auto">
+          <Button
+            onClick={onSubmit}
+            loading={loading}
+            className="w-full"
+            size="lg"
+          >
+            Place Order · {formatCurrency(total)} <ChevronRight size={18} />
+          </Button>
         </div>
-      )}
+      </div>
+    </div>
+  )
+}
+
+function Row({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex justify-between text-sm text-gray-500 dark:text-gray-400">
+      <span>{label}</span><span>{value}</span>
     </div>
   )
 }

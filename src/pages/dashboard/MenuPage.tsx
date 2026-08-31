@@ -27,6 +27,7 @@ const itemSchema = z.object({
   price: z.number().min(0, 'Price must be positive'),
   is_popular: z.boolean().optional(),
   is_instant: z.boolean().optional(),
+  is_display_only: z.boolean().optional(),
   track_stock: z.boolean().optional(),
   stock_quantity: z.number().int().min(0).optional(),
   low_stock_threshold: z.number().int().min(0).optional(),
@@ -115,7 +116,7 @@ export default function MenuPage() {
 
   // ── ITEM ACTIONS ─────────────────────────────────────────────────────────────
   const openAddItem = (categoryId: string) => {
-    itemForm.reset({ name: '', description: '', price: 0, calories: undefined, is_popular: false, is_instant: false, track_stock: false, stock_quantity: 0, low_stock_threshold: 5, is_category_image: false, is_special: false })
+    itemForm.reset({ name: '', description: '', price: 0, calories: undefined, is_popular: false, is_instant: false, is_display_only: false, track_stock: false, stock_quantity: 0, low_stock_threshold: 5, is_category_image: false, is_special: false })
     setCustomGroups([])
     setItemUnit('')
     setItemVariants([])
@@ -130,6 +131,7 @@ export default function MenuPage() {
       calories: item.calories ?? undefined,
       is_popular: item.is_popular,
       is_instant: item.is_instant,
+      is_display_only: item.is_display_only ?? false,
       track_stock: item.stock_quantity !== null,
       stock_quantity: item.stock_quantity ?? 0,
       low_stock_threshold: item.low_stock_threshold ?? 5,
@@ -197,6 +199,7 @@ export default function MenuPage() {
       calories: data.calories ?? null,
       is_popular: data.is_popular || false,
       is_instant: data.is_instant || false,
+      is_display_only: data.is_display_only || false,
       stock_quantity: data.track_stock ? (data.stock_quantity ?? 0) : null,
       low_stock_threshold: data.low_stock_threshold ?? 5,
       customization_groups: customGroups,
@@ -348,6 +351,7 @@ export default function MenuPage() {
                                   {item.is_category_image && <Badge variant="outline" className="text-brand-primary border-brand-primary dark:text-brand-primary dark:border-brand-primary"><ImageIcon size={10} className="mr-1" />Category image</Badge>}
                                   {item.is_instant && <Badge variant="orange"><Zap size={10} className="mr-0.5" />Instant</Badge>}
                                   {item.is_popular && <Badge variant="orange">Popular</Badge>}
+                                  {item.is_display_only && <Badge variant="outline" className="border-blue-400 text-blue-600 bg-blue-50 dark:border-blue-500/50 dark:text-blue-400 dark:bg-blue-900/20">Display-only</Badge>}
                                   {!item.is_available && <Badge variant="default">Unavailable</Badge>}
                                   {item.customization_groups?.length > 0 && <Badge variant="default"><Settings2 size={10} className="mr-0.5" />{item.customization_groups.length} options</Badge>}
                                   {item.stock_quantity !== null && (
@@ -592,6 +596,11 @@ export default function MenuPage() {
             checked={itemForm.watch('is_instant') || false}
             onChange={(v) => itemForm.setValue('is_instant', v)}
             label="⚡ Instant / Ready-made (no prep time)"
+          />
+          <Toggle
+            checked={itemForm.watch('is_display_only') || false}
+            onChange={(v) => itemForm.setValue('is_display_only', v)}
+            label="👁 Display-only (visible on menu, cannot be ordered online)"
           />
           <Toggle
             checked={itemForm.watch('track_stock') || false}

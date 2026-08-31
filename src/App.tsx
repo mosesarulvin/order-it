@@ -72,6 +72,24 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
+// Owner-only routes (owners + super-admins)
+function OwnerRoute({ children }: { children: React.ReactNode }) {
+  const { user, userRole, isSuperAdmin, loading } = useAuth()
+  if (loading) return <AppLoading />
+  if (!user) return <Navigate to="/login" replace />
+  if (!isSuperAdmin && userRole !== 'owner') return <Navigate to="/dashboard" replace />
+  return <>{children}</>
+}
+
+// Super-admin-only routes
+function SuperAdminRoute({ children }: { children: React.ReactNode }) {
+  const { user, isSuperAdmin, loading } = useAuth()
+  if (loading) return <AppLoading />
+  if (!user) return <Navigate to="/login" replace />
+  if (!isSuperAdmin) return <Navigate to="/dashboard" replace />
+  return <>{children}</>
+}
+
 function AuthRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
   if (loading) return <AppLoading />
@@ -102,6 +120,8 @@ export default function App() {
           <Route path="/order/:slug/review/:orderId" element={<ReviewPage />} />
           <Route path="/order/:slug/profile" element={<ProfileLandingPage />} />
           <Route path="/order/:slug/profile/new" element={<ProfilePage />} />
+          <Route path="/order/:slug/profile/dashboard" element={<ProfileDashboardPage />} />
+          {/* Legacy path — redirects to session-authenticated dashboard. */}
           <Route path="/order/:slug/profile/:profileId" element={<ProfileDashboardPage />} />
         </Route>
 
@@ -123,11 +143,11 @@ export default function App() {
         <Route path="/dashboard/customers" element={<ProtectedRoute><DashboardLayout><CustomersPage /></DashboardLayout></ProtectedRoute>} />
         <Route path="/dashboard/walkin" element={<ProtectedRoute><DashboardLayout><WalkInPage /></DashboardLayout></ProtectedRoute>} />
         <Route path="/dashboard/qr" element={<ProtectedRoute><DashboardLayout><QRCodePage /></DashboardLayout></ProtectedRoute>} />
-        <Route path="/dashboard/settings" element={<ProtectedRoute><DashboardLayout><SettingsPage /></DashboardLayout></ProtectedRoute>} />
-        <Route path="/dashboard/staff" element={<ProtectedRoute><DashboardLayout><StaffManagementPage /></DashboardLayout></ProtectedRoute>} />
+        <Route path="/dashboard/settings" element={<OwnerRoute><DashboardLayout><SettingsPage /></DashboardLayout></OwnerRoute>} />
+        <Route path="/dashboard/staff" element={<OwnerRoute><DashboardLayout><StaffManagementPage /></DashboardLayout></OwnerRoute>} />
         
         {/* Super Admin */}
-        <Route path="/admin" element={<ProtectedRoute><DashboardLayout><AdminDashboard /></DashboardLayout></ProtectedRoute>} />
+        <Route path="/admin" element={<SuperAdminRoute><DashboardLayout><AdminDashboard /></DashboardLayout></SuperAdminRoute>} />
 
         {/* Default */}
         <Route path="/" element={<Navigate to="/dashboard" replace />} />

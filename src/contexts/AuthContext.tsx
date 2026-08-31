@@ -13,7 +13,7 @@ interface AuthContextValue {
   isSuperAdmin: boolean
   loading: boolean
   signIn: (email: string, password: string) => Promise<void>
-  signUp: (email: string, password: string, shopName: string) => Promise<void>
+  signUp: (email: string, password: string, shopName: string, customSlug?: string) => Promise<void>
   signOut: () => Promise<void>
   refreshShop: () => Promise<void>
 }
@@ -30,31 +30,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isSuperAdmin, setIsSuperAdmin] = useState(false)
 
   const fetchShop = async (userId: string) => {
-    // 1. Check if super admin
-    const { data: profile } = await supabase.from('user_profiles').select('is_super_admin').eq('id', userId).maybeSingle()
-    setIsSuperAdmin(profile?.is_super_admin ?? false)
+    try {
+      // 1. Check if super admin
+      const { data: profile } = await supabase.from('user_profiles').select('is_super_admin').eq('id', userId).maybeSingle()
+      setIsSuperAdmin(profile?.is_super_admin ?? false)
 
-    // 2. Fetch role from shop_staff
-    const { data: staffData } = await supabase.from('shop_staff').select('role, shop_id').eq('user_id', userId).maybeSingle()
-    
-    let currentShop = null
-    let currentRole: UserRole = null
+      // 2. Fetch role from shop_staff
+      const { data: staffData } = await supabase.from('shop_staff').select('role, shop_id').eq('user_id', userId).maybeSingle()
 
-    if (staffData) {
-      currentRole = staffData.role as UserRole
-      const { data: shopData } = await supabase.from('shops').select('*').eq('id', staffData.shop_id).maybeSingle()
-      currentShop = shopData
-    } else {
-      // Fallback for existing owners before migration
-      const { data: shopData } = await supabase.from('shops').select('*').eq('owner_id', userId).maybeSingle()
-      if (shopData) {
+      let currentShop = null
+      let currentRole: UserRole = null
+
+      if (staffData) {
+        currentRole = staffData.role as UserRole
+        const { data: shopData } = await supabase.from('shops').select('*').eq('id', staffData.shop_id).maybeSingle()
         currentShop = shopData
-        currentRole = 'owner'
+      } else {
+        // Fallback for existing owners before migration
+        const { data: shopData } = await supabase.from('shops').select('*').eq('owner_id', userId).maybeSingle()
+        if (shopData) {
+          currentShop = shopData
+          currentRole = 'owner'
+        }
       }
-    }
 
-    setShop(currentShop)
-    setUserRole(currentRole)
+      setShop(currentShop)
+      setUserRole(currentRole)
+    } catch (err) {
+      console.error('fetchShop error:', err)
+      setShop(null)
+      setUserRole(null)
+      setIsSuperAdmin(false)
+    }
   }
 
   const refreshShop = async () => {
@@ -62,18 +69,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session)
       setUser(session?.user ?? null)
-      if (session?.user) fetchShop(session.user.id)
+      if (session?.user) await fetchShop(session.user.id)
       setLoading(false)
     })
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setSession(session)
       setUser(session?.user ?? null)
       if (session?.user) {
-        fetchShop(session.user.id)
+        await fetchShop(session.user.id)
       } else {
         setShop(null)
         setUserRole(null)
@@ -90,21 +97,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (error) throw error
   }
 
-  const signUp = async (email: string, password: string, shopName: string) => {
+  const signUp = async (email: string, password: string, shopName: string, customSlug?: string) => {
     const { data, error } = await supabase.auth.signUp({ email, password })
     if (error) throw error
     if (data.user) {
-      const slug = shopName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+      const baseSlug = shopName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+      const slug = customSlug ?? `${baseSlug}-${Math.random().toString(36).slice(2, 6)}`
       const { data: shopData, error: shopError } = await supabase.from('shops').insert({
         owner_id: data.user.id,
         name: shopName,
-        slug: `${slug}-${Math.random().toString(36).slice(2, 6)}`,
+        slug,
         currency: 'INR',
         is_open: true,
         tax_percent: 0,
       }).select().single()
       if (shopError) throw new Error(shopError.message)
-      // Set shop immediately after insert — don't wait for onAuthStateChange race
       if (shopData) setShop(shopData)
     }
   }

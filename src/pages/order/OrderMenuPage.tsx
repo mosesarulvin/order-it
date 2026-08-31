@@ -1,13 +1,34 @@
-import { useEffect, useState, useRef, useMemo } from 'react'
+import { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Plus, Minus, Search, Star, Clock, ChevronLeft, ChevronRight, UtensilsCrossed, X as XIcon, User, Flame } from 'lucide-react'
+import { Plus, Minus, Search, Star, Clock, ChevronLeft, ChevronRight, UtensilsCrossed, X as XIcon, User, Flame, Eye, ArrowUp } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { formatCurrency } from '@/lib/utils'
 import { useCartStore } from '@/store/cartStore'
 import { useCustomerOrderNotifications } from '@/hooks/useCustomerOrderNotifications'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { MenuItemSkeleton } from '@/components/ui/Skeleton'
+import { getSessionToken, getCachedIdentity } from '@/lib/customerSession'
 import type { CustomizationGroup, Shop, MenuCategory, MenuItem } from '@/types'
+import toast from 'react-hot-toast'
+
+// Renders `* foo` / `- foo` line-prefixed text as an actual bullet list.
+function DescriptionBlock({ text }: { text: string }) {
+  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
+  const allBullets = lines.length >= 2 && lines.every((l) => /^[*\-•]\s+/.test(l))
+  if (allBullets) {
+    return (
+      <ul className="space-y-1.5 text-sm text-gray-600 dark:text-gray-300 leading-relaxed">
+        {lines.map((line, i) => (
+          <li key={i} className="flex gap-2 items-start">
+            <span className="mt-2 w-1 h-1 rounded-full bg-brand-primary flex-shrink-0" aria-hidden />
+            <span>{line.replace(/^[*\-•]\s+/, '')}</span>
+          </li>
+        ))}
+      </ul>
+    )
+  }
+  return <p className="text-sm text-gray-600 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">{text}</p>
+}
 
 export default function OrderMenuPage() {
   const { slug } = useParams<{ slug: string }>()
@@ -24,10 +45,15 @@ export default function OrderMenuPage() {
   const [customSelections, setCustomSelections] = useState<Record<string, string[]>>({})
   const [selectedVariantId, setSelectedVariantId] = useState<string>('')
   const [viewingItem, setViewingItem] = useState<MenuItem | null>(null)
+  const [popupQty, setPopupQty] = useState(1)
   const categoryRefs = useRef<Record<string, HTMLDivElement>>({})
+  const categoryChipRefs = useRef<Record<string, HTMLButtonElement>>({})
   const categoryNavRef = useRef<HTMLDivElement | null>(null)
   const [canScrollLeft, setCanScrollLeft] = useState(false)
   const [canScrollRight, setCanScrollRight] = useState(false)
+  const [showBackToTop, setShowBackToTop] = useState(false)
+  // Suppresses scroll-spy while a click-to-scroll animation is in flight.
+  const suppressSpyRef = useRef(false)
 
   const checkCategoryScroll = () => {
     const el = categoryNavRef.current
@@ -48,6 +74,57 @@ export default function OrderMenuPage() {
     }
   }, [categories])
 
+  // Scroll-spy: as the customer scrolls the page, highlight the current category.
+  useEffect(() => {
+    if (loading || search) return
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (suppressSpyRef.current) return
+        const visible = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0]
+        if (!visible) return
+        const id = (visible.target as HTMLElement).dataset.categoryId
+        if (id) setActiveCategory(id)
+      },
+      { rootMargin: '-120px 0px -60% 0px', threshold: [0, 0.1] },
+    )
+    Object.values(categoryRefs.current).forEach((el) => el && observer.observe(el))
+    return () => observer.disconnect()
+  }, [loading, search, categories])
+
+  // Keep the active category chip in view as it changes.
+  useEffect(() => {
+    if (!activeCategory) return
+    const chip = categoryChipRefs.current[activeCategory]
+    chip?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' })
+  }, [activeCategory])
+
+  // Back-to-top FAB appears after the customer has scrolled past the hero.
+  useEffect(() => {
+    const onScroll = () => setShowBackToTop(window.scrollY > 600)
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
+
+  const scrollToTop = useCallback(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }, [])
+
+  // Reset qty & lock background scroll when the detail popup opens.
+  useEffect(() => {
+    if (!viewingItem) return
+    setPopupQty(1)
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setViewingItem(null) }
+    window.addEventListener('keydown', onKey)
+    return () => {
+      document.body.style.overflow = prev
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [viewingItem])
+
   const scrollCategories = (direction: 'left' | 'right') => {
     const el = categoryNavRef.current
     if (!el) return
@@ -55,7 +132,7 @@ export default function OrderMenuPage() {
     el.scrollBy({ left: scrollAmount, behavior: 'smooth' })
   }
 
-  const { items: cartItems, addItem, updateQuantity, getTotalItems, getTotalPrice, setShopSlug, shopSlug, clearCart, getPackingCharge, orderType, setOrderType } = useCartStore()
+  const { items: cartItems, addItem, updateQuantity, getTotalItems, getTotalPrice, setShopSlug, shopSlug, clearCart, getPackingCharge } = useCartStore()
 
   useEffect(() => {
     if (slug) fetchShopData()
@@ -99,6 +176,14 @@ export default function OrderMenuPage() {
   }
 
   const handleAddItem = (item: MenuItem) => {
+    if (shop && shop.ordering_enabled === false) {
+      toast.error('This menu is view-only — please order at the counter')
+      return
+    }
+    if (item.is_display_only) {
+      toast.error(`"${item.name}" is menu-only — please order at the counter`)
+      return
+    }
     const hasCustoms = item.customization_groups && item.customization_groups.length > 0
     const hasVariants = item.variants && item.variants.length > 0
     if (hasCustoms || hasVariants) {
@@ -164,13 +249,16 @@ export default function OrderMenuPage() {
   }
 
   const scrollToCategory = (categoryId: string) => {
+    suppressSpyRef.current = true
     setActiveCategory(categoryId)
     const el = categoryRefs.current[categoryId]
     if (el) {
-      const offset = 90 // Account for sticky header (h-12 buttons + py-3 padding + spacing)
+      const offset = 90
       const top = el.getBoundingClientRect().top + window.scrollY - offset
       window.scrollTo({ top, behavior: 'smooth' })
     }
+    // Match the smooth-scroll duration on most browsers before re-enabling spy.
+    window.setTimeout(() => { suppressSpyRef.current = false }, 700)
   }
 
   const searchedItems = useMemo(() => {
@@ -273,19 +361,36 @@ export default function OrderMenuPage() {
             </div>
             <div className="flex items-center gap-2">
               <ThemeToggle isDarkBackground />
-              <button
-                onClick={() => {
-                  const profileId = localStorage.getItem(`profile-${slug}`)
-                  if (profileId) {
-                    navigate(`/order/${slug}/profile/${profileId}`)
-                  } else {
-                    navigate(`/order/${slug}/profile`)
-                  }
-                }}
-                className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors flex-shrink-0"
-              >
-                <User size={20} className="text-white" />
-              </button>
+              {(() => {
+                const token = slug ? getSessionToken(slug) : null
+                const identity = slug ? getCachedIdentity(slug) : null
+                const initials = identity?.name
+                  ? identity.name.trim().split(/\s+/).map((w) => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase()
+                  : null
+
+                return (
+                  <button
+                    onClick={() => {
+                      if (token) {
+                        navigate(`/order/${slug}/profile/dashboard`)
+                      } else {
+                        navigate(`/order/${slug}/profile`)
+                      }
+                    }}
+                    title={identity?.name ? `Signed in as ${identity.name}` : 'My Profile'}
+                    className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors flex-shrink-0 relative"
+                  >
+                    {token && initials ? (
+                      <span className="text-xs font-bold text-white tracking-wider">{initials}</span>
+                    ) : (
+                      <User size={20} className="text-white" />
+                    )}
+                    {token && (
+                      <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-400 border-2 border-brand-500 rounded-full" />
+                    )}
+                  </button>
+                )
+              })()}
             </div>
           </div>
 
@@ -299,28 +404,6 @@ export default function OrderMenuPage() {
               onChange={(e) => setSearch(e.target.value)}
               className="w-full h-10 pl-9 pr-4 rounded-xl bg-white dark:bg-slate-900 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 outline-none border border-transparent dark:border-slate-800 shadow-sm"
             />
-          </div>
-
-          {/* Order Type Toggle */}
-          <div className="flex bg-white dark:bg-slate-900 p-1 rounded-xl mt-3 shadow-sm border border-transparent dark:border-slate-800">
-            <button
-              onClick={() => setOrderType('dine_in')}
-              className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${orderType === 'dine_in'
-                  ? 'bg-brand-primary text-white shadow-md shadow-brand-primary/20'
-                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-                }`}
-            >
-              Dine-in
-            </button>
-            <button
-              onClick={() => setOrderType('takeaway')}
-              className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${orderType === 'takeaway'
-                  ? 'bg-brand-primary text-white shadow-md shadow-brand-primary/20'
-                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-                }`}
-            >
-              Takeaway
-            </button>
           </div>
         </div>
       </div>
@@ -341,32 +424,44 @@ export default function OrderMenuPage() {
 
             <div
               ref={categoryNavRef}
-              className="flex gap-2 overflow-x-auto px-4 py-3 no-scrollbar w-full"
+              className="flex gap-2 overflow-x-auto px-4 py-3 no-scrollbar w-full [mask-image:linear-gradient(to_right,transparent,black_16px,black_calc(100%-16px),transparent)]"
               style={{ scrollbarWidth: 'none' }}
             >
               {loading
                 ? Array.from({ length: 4 }).map((_, i) => (
-                  <div key={i} className="h-12 w-28 bg-gray-100 dark:bg-slate-800 rounded-full animate-pulse flex-shrink-0" />
+                  <div key={i} className="h-9 w-24 bg-gray-100 dark:bg-slate-800 rounded-full animate-pulse flex-shrink-0" />
                 ))
                 : (
                   <>
                     {categories.filter(cat => filteredItems(cat.id).length > 0).map((cat) => {
-                      const categoryImageItem = items.find((i) => i.category_id === cat.id && i.is_category_image && i.image_url)
-                      const hasImage = !!(categoryImageItem && categoryImageItem.image_url)
-
+                      const catItems = filteredItems(cat.id)
+                      const catImage = catItems.find((i) => (i as any).is_category_image && i.image_url)?.image_url || catItems.find((i) => i.image_url)?.image_url
+                      const active = activeCategory === cat.id
                       return (
                         <button
                           key={cat.id}
+                          ref={(el) => { if (el) categoryChipRefs.current[cat.id] = el }}
                           onClick={() => scrollToCategory(cat.id)}
-                          className={`flex-shrink-0 flex items-center gap-2.5 h-12 ${hasImage ? 'pl-1 pr-5' : 'px-5'} rounded-full text-sm font-medium transition-all ${activeCategory === cat.id
-                              ? 'bg-brand-primary text-white shadow-sm shadow-brand-primary'
-                              : 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-700'
+                          aria-pressed={active}
+                          className={`flex-shrink-0 inline-flex items-center gap-2 h-10 pl-1.5 pr-4 rounded-full text-xs font-bold uppercase tracking-wider transition-all active:scale-95 ${active
+                              ? 'bg-brand-primary text-white shadow-sm shadow-brand-primary/40 ring-2 ring-brand-primary/20'
+                              : 'bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-700'
                             }`}
                         >
-                          {hasImage && (
-                            <img src={categoryImageItem.image_url!} alt="" className="w-10 h-10 rounded-full object-cover border border-white/20 shadow-sm" />
+                          {catImage ? (
+                            <img
+                              src={catImage}
+                              alt={cat.name}
+                              className="w-7 h-7 rounded-full object-cover border border-white/40 dark:border-slate-700 shrink-0"
+                            />
+                          ) : (
+                            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs shrink-0 ${
+                              active ? 'bg-white/20 text-white' : 'bg-white dark:bg-slate-900 text-gray-500'
+                            }`}>
+                              🍽️
+                            </div>
                           )}
-                          {cat.name}
+                          <span>{cat.name}</span>
                         </button>
                       )
                     })}
@@ -450,6 +545,14 @@ export default function OrderMenuPage() {
                       const outOfStock = item.stock_quantity === 0
                       const hasCustomizations = (item.customization_groups ?? []).length > 0 || (item.variants ?? []).length > 0
 
+                      if (shop?.ordering_enabled === false || item.is_display_only) {
+                        return (
+                          <div className="w-full h-9 flex items-center justify-center gap-1.5 rounded-xl bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800/40 text-blue-700 dark:text-blue-300 font-semibold text-sm">
+                            <Eye size={14} /> Menu only
+                          </div>
+                        )
+                      }
+
                       if (qty > 0 && !hasCustomizations) {
                         return (
                           <div className="flex items-center justify-between bg-brand-primary-lighter dark:bg-brand-primary-shadow rounded-xl p-1 shadow-inner border border-brand-primary-light dark:border-brand-primary-dark/30">
@@ -494,6 +597,21 @@ export default function OrderMenuPage() {
         </div>
       )}
 
+      {/* Menu-only banner — shown when shop has disabled online ordering */}
+      {shop && shop.ordering_enabled === false && (
+        <div className="max-w-lg mx-auto px-4 pt-4">
+          <div className="flex items-start gap-3 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-2xl p-4">
+            <Eye size={18} className="text-blue-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-blue-900 dark:text-blue-300 text-sm">This menu is for viewing only</p>
+              <p className="text-xs text-blue-700 dark:text-blue-400 mt-0.5">
+                Online ordering is currently disabled. Please order at the counter.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Grab & Go only banner — shown when shop is offline but has instant items */}
       {grabAndGoOnly && (
         <div className="max-w-lg mx-auto px-4 pt-4">
@@ -531,8 +649,16 @@ export default function OrderMenuPage() {
                 if (catItems.length === 0) return null
 
                 return (
-                  <div key={cat.id} ref={(el) => { if (el) categoryRefs.current[cat.id] = el }}>
-                    <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-3">{cat.name}</h2>
+                  <div key={cat.id} data-category-id={cat.id} ref={(el) => { if (el) categoryRefs.current[cat.id] = el }} className="scroll-mt-24">
+                    <div className="flex items-center justify-between mb-3">
+                      <h2 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                        <span className="inline-block w-1 h-5 rounded-full bg-brand-primary" aria-hidden />
+                        {cat.name}
+                      </h2>
+                      <span className="text-xs font-semibold text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-slate-800/60 px-2.5 py-1 rounded-full">
+                        {catItems.length} {catItems.length === 1 ? 'item' : 'items'}
+                      </span>
+                    </div>
                     <div className="space-y-3">
                       {catItems.map((item) => {
                         const qty = getItemQuantity(item.id)
@@ -542,14 +668,18 @@ export default function OrderMenuPage() {
                         return (
                           <div
                             key={item.id}
-                            className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-4 flex gap-3 shadow-sm transition-shadow hover:shadow-md"
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => setViewingItem(item)}
+                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setViewingItem(item) } }}
+                            className="group bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-4 flex gap-3 shadow-sm transition-all cursor-pointer hover:shadow-md hover:-translate-y-0.5 hover:border-brand-primary-light dark:hover:border-brand-primary-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/60"
                             style={{ animation: 'fadeIn 0.3s ease-out' }}
                           >
                             {item.image_url ? (
                               <img src={item.image_url} alt={item.name} loading="lazy" className="w-20 h-20 rounded-xl object-cover flex-shrink-0" />
                             ) : (
-                              <div className="w-20 h-20 rounded-xl bg-brand-primary-lighter dark:bg-brand-primary-shadow flex items-center justify-center flex-shrink-0 border border-brand-primary-light dark:border-brand-primary-dark">
-                                <span className="text-3xl">🍽️</span>
+                              <div className="w-20 h-20 rounded-xl bg-gradient-to-br from-gray-50 to-gray-100 dark:from-slate-800 dark:to-slate-900 flex items-center justify-center flex-shrink-0 border border-gray-100 dark:border-slate-700/60">
+                                <UtensilsCrossed size={22} strokeWidth={1.5} className="text-gray-300 dark:text-slate-600" />
                               </div>
                             )}
                             <div className="flex-1 min-w-0">
@@ -572,10 +702,7 @@ export default function OrderMenuPage() {
                                 )}
                               </div>
                               {item.description && (
-                                <p
-                                  onClick={() => setViewingItem(item)}
-                                  className="text-xs text-gray-400 mt-1 leading-relaxed line-clamp-2 cursor-pointer hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-                                >
+                                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 leading-relaxed line-clamp-2">
                                   {item.description}
                                 </p>
                               )}
@@ -594,32 +721,36 @@ export default function OrderMenuPage() {
                                 <p className="text-xs text-gray-400 mt-0.5">Customizable</p>
                               )}
                               <div className="flex items-center justify-between mt-2">
-                                <span className="font-bold text-brand-accent dark:text-brand-primary text-sm sm:text-base">
+                                <span className="font-extrabold text-brand-accent dark:text-brand-primary text-base sm:text-lg tracking-tight">
                                   {item.variants && item.variants.length > 0 ? `From ${formatCurrency(item.price)}` : formatCurrency(item.price)}
                                 </span>
-                                {outOfStock ? (
+                                {(shop?.ordering_enabled === false || item.is_display_only) ? (
+                                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800/40 px-2.5 py-1 rounded-lg">
+                                    <Eye size={12} /> Menu only
+                                  </span>
+                                ) : outOfStock ? (
                                   <span className="text-xs text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-slate-800 px-2 py-1 rounded-lg">Out of stock</span>
                                 ) : qty === 0 || hasCustomizations ? (
                                   <button
-                                    onClick={() => handleAddItem(item)}
-                                    className="flex items-center gap-1 h-8 px-3 bg-brand-primary text-white rounded-xl text-sm font-semibold hover:opacity-90 active:scale-95 transition-all"
+                                    onClick={(e) => { e.stopPropagation(); handleAddItem(item) }}
+                                    className="flex items-center gap-1 h-9 px-4 bg-brand-primary text-white rounded-xl text-sm font-semibold shadow-sm shadow-brand-primary/30 hover:opacity-90 active:scale-95 transition-all"
                                   >
                                     <Plus size={14} /> Add
                                   </button>
                                 ) : (
-                                  <div className="flex items-center gap-1.5 bg-gray-50 dark:bg-slate-800 rounded-xl p-1">
+                                  <div className="flex items-center gap-1.5 bg-gray-50 dark:bg-slate-800 rounded-xl p-1" onClick={(e) => e.stopPropagation()}>
                                     <button
-                                      onClick={() => updateQuantity(item.id, qty - 1)}
-                                      className="w-7 h-7 flex items-center justify-center rounded-lg bg-white dark:bg-slate-700 text-gray-500 dark:text-gray-300 shadow-sm hover:opacity-90 transition-colors"
+                                      onClick={(e) => { e.stopPropagation(); updateQuantity(item.id, qty - 1) }}
+                                      className="w-8 h-8 flex items-center justify-center rounded-lg bg-white dark:bg-slate-700 text-gray-500 dark:text-gray-300 shadow-sm hover:opacity-90 transition-colors"
                                     >
-                                      <Minus size={13} />
+                                      <Minus size={14} />
                                     </button>
                                     <span className="w-5 text-center text-sm font-bold text-gray-900 dark:text-white">{qty}</span>
                                     <button
-                                      onClick={() => addItem(item)}
-                                      className="w-7 h-7 flex items-center justify-center rounded-lg bg-brand-primary text-white shadow-sm hover:opacity-90 transition-colors"
+                                      onClick={(e) => { e.stopPropagation(); addItem(item) }}
+                                      className="w-8 h-8 flex items-center justify-center rounded-lg bg-brand-primary text-white shadow-sm hover:opacity-90 transition-colors"
                                     >
-                                      <Plus size={13} />
+                                      <Plus size={14} />
                                     </button>
                                   </div>
                                 )}
@@ -638,69 +769,210 @@ export default function OrderMenuPage() {
       </div>
 
       {/* Item Details Popup */}
-      {viewingItem && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={() => setViewingItem(null)}>
-          <div className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-3xl overflow-hidden shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            {viewingItem.image_url ? (
-              <div className="relative h-64 w-full bg-gray-50 dark:bg-slate-950 flex items-center justify-center">
-                <img src={viewingItem.image_url} alt={viewingItem.name} loading="lazy" className="w-full h-full object-contain p-2" />
-                <button
-                  onClick={() => setViewingItem(null)}
-                  className="absolute top-3 right-3 w-8 h-8 bg-black/50 backdrop-blur-md rounded-full flex items-center justify-center text-white hover:bg-black/70 transition-colors"
-                >
-                  <XIcon size={18} />
-                </button>
-              </div>
-            ) : (
-              <div className="flex justify-end p-3 pb-0">
-                <button onClick={() => setViewingItem(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
-                  <XIcon size={20} />
-                </button>
-              </div>
-            )}
+      {viewingItem && (() => {
+        const hasChoice = (viewingItem.customization_groups?.length ?? 0) > 0
+                       || (viewingItem.variants?.length ?? 0) > 0
+        const outOfStock = viewingItem.stock_quantity === 0
+        const lowStock = viewingItem.stock_quantity !== null
+                      && viewingItem.stock_quantity > 0
+                      && viewingItem.stock_quantity <= viewingItem.low_stock_threshold
+        const blocked = shop?.ordering_enabled === false || viewingItem.is_display_only
+        const priceLabel = viewingItem.variants && viewingItem.variants.length > 0
+          ? `From ${formatCurrency(viewingItem.price)}`
+          : formatCurrency(viewingItem.price)
+        const totalLabel = formatCurrency(viewingItem.price * popupQty)
+        const close = () => setViewingItem(null)
 
-            <div className="p-5">
-              <div className="flex items-start justify-between gap-3 mb-2">
-                <div>
-                  <h3 className="font-bold text-gray-900 dark:text-white text-lg">{viewingItem.name}</h3>
-                  {viewingItem.calories && (
-                    <span className="inline-flex items-center gap-1 text-xs font-medium text-orange-600 dark:text-orange-400 mt-0.5 bg-orange-50 dark:bg-orange-900/20 px-2 py-0.5 rounded-md">
-                      <Flame size={12} /> {viewingItem.calories} kcal
-                    </span>
-                  )}
+        return (
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="item-detail-title"
+            className="fixed inset-0 z-40 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm"
+            style={{ animation: 'fadeIn 0.18s ease-out' }}
+            onClick={close}
+          >
+            <div
+              className="relative w-full sm:max-w-md bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl shadow-2xl max-h-[92vh] sm:max-h-[86vh] flex flex-col overflow-hidden"
+              style={{ animation: 'sheetUp 0.32s cubic-bezier(0.22, 1, 0.36, 1)' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Mobile drag-handle affordance */}
+              <div className="sm:hidden pt-2 pb-1 flex justify-center flex-shrink-0">
+                <span className="block w-10 h-1.5 rounded-full bg-gray-200 dark:bg-slate-700" />
+              </div>
+
+              {/* Hero image or clean header */}
+              {viewingItem.image_url ? (
+                <div className="relative aspect-[4/3] w-full bg-gray-100 dark:bg-slate-950 flex-shrink-0">
+                  <img
+                    src={viewingItem.image_url}
+                    alt={viewingItem.name}
+                    loading="lazy"
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/40 to-transparent pointer-events-none" />
+                  <div className="absolute top-3 left-3 flex flex-wrap gap-1.5">
+                    {viewingItem.is_popular && (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-bold bg-brand-primary text-white px-2 py-1 rounded-full shadow-md">
+                        <Star size={10} fill="currentColor" /> Popular
+                      </span>
+                    )}
+                    {viewingItem.is_instant && (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-bold bg-orange-500 text-white px-2 py-1 rounded-full shadow-md">
+                        <Flame size={10} /> Instant
+                      </span>
+                    )}
+                    {viewingItem.rating_count && viewingItem.rating_count > 0 ? (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-bold bg-white/95 text-gray-900 px-2 py-1 rounded-full shadow-md">
+                        <Star size={10} fill="currentColor" className="text-amber-400" />
+                        {Number(viewingItem.rating_average).toFixed(1)}
+                        <span className="text-gray-500 font-medium">({viewingItem.rating_count})</span>
+                      </span>
+                    ) : null}
+                  </div>
+                  <button
+                    onClick={close}
+                    aria-label="Close"
+                    className="absolute top-3 right-3 w-9 h-9 bg-black/50 backdrop-blur-md rounded-full flex items-center justify-center text-white hover:bg-black/70 active:scale-95 transition-all"
+                  >
+                    <XIcon size={18} />
+                  </button>
                 </div>
-                <span className="font-bold text-brand-accent dark:text-brand-primary-light shrink-0 mt-1">
-                  {formatCurrency(viewingItem.price)}
-                </span>
-              </div>
-
-              {viewingItem.tags && viewingItem.tags.length > 0 && (
-                <div className="flex flex-wrap gap-1 mb-4">
-                  {viewingItem.tags.map((tag, idx) => (
-                    <span key={idx} className="text-[10px] uppercase tracking-wider font-bold bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300 px-2 py-0.5 rounded-full border border-gray-200 dark:border-slate-700">
-                      {tag}
-                    </span>
-                  ))}
+              ) : (
+                <div className="relative pt-6 pb-2 px-5 flex-shrink-0">
+                  <button
+                    onClick={close}
+                    aria-label="Close"
+                    className="absolute top-3 right-3 w-9 h-9 rounded-full bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 flex items-center justify-center text-gray-500 dark:text-gray-400 transition-colors"
+                  >
+                    <XIcon size={16} />
+                  </button>
                 </div>
               )}
 
-              <div className="max-h-[40vh] overflow-y-auto no-scrollbar mb-5">
-                <p className="text-sm text-gray-600 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">{viewingItem.description}</p>
+              {/* Scrollable body */}
+              <div className="flex-1 overflow-y-auto px-5 py-4">
+                <div className="flex items-start justify-between gap-3">
+                  <h3 id="item-detail-title" className="font-bold text-gray-900 dark:text-white text-xl leading-tight">
+                    {viewingItem.name}
+                  </h3>
+                  <span className="font-extrabold text-brand-accent dark:text-brand-primary text-lg tracking-tight flex-shrink-0">
+                    {priceLabel}
+                  </span>
+                </div>
+
+                {(viewingItem.calories || outOfStock || lowStock) && (
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    {viewingItem.calories && (
+                      <span className="inline-flex items-center gap-1 text-xs font-medium text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20 px-2 py-0.5 rounded-md">
+                        <Flame size={12} /> {viewingItem.calories} kcal
+                      </span>
+                    )}
+                    {outOfStock && (
+                      <span className="text-xs font-semibold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-2 py-0.5 rounded-md">
+                        Out of stock
+                      </span>
+                    )}
+                    {lowStock && (
+                      <span className="text-xs font-semibold text-brand-primary bg-brand-primary/10 px-2 py-0.5 rounded-md">
+                        Only {viewingItem.stock_quantity} left
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                {viewingItem.tags && viewingItem.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-3">
+                    {viewingItem.tags.map((tag, idx) => (
+                      <span key={idx} className="text-[10px] uppercase tracking-wider font-bold bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300 px-2 py-0.5 rounded-full border border-gray-200 dark:border-slate-700">
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {viewingItem.description && (
+                  <div className="mt-4">
+                    <DescriptionBlock text={viewingItem.description} />
+                  </div>
+                )}
+
+                {viewingItem.variants && viewingItem.variants.length > 0 && (
+                  <div className="mt-5">
+                    <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Available sizes</p>
+                    <div className="flex flex-wrap gap-2">
+                      {viewingItem.variants.map((v) => (
+                        <span key={v.id} className={`inline-flex items-center gap-2 text-xs font-medium px-2.5 py-1.5 rounded-lg border ${v.is_out_of_stock ? 'bg-gray-50 dark:bg-slate-800 text-gray-400 border-gray-100 dark:border-slate-700 line-through' : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-slate-700'}`}>
+                          {v.size}{v.unit ? ` ${v.unit}` : ''} · <span className={`font-bold ${v.is_out_of_stock ? '' : 'text-brand-accent dark:text-brand-primary'}`}>{formatCurrency(v.price)}</span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
-              <button
-                onClick={() => {
-                  setViewingItem(null)
-                  handleAddItem(viewingItem)
-                }}
-                className="w-full py-3.5 rounded-2xl font-bold text-sm bg-brand-primary text-white shadow-lg shadow-brand-primary/30 hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+              {/* Sticky footer */}
+              <div
+                className="flex-shrink-0 border-t border-gray-100 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3"
+                style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 0.75rem)' }}
               >
-                <Plus size={16} /> Add to Cart
-              </button>
+                {blocked ? (
+                  <div className="w-full py-3 rounded-2xl font-semibold text-sm bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800/40 text-blue-700 dark:text-blue-300 flex items-center justify-center gap-2">
+                    <Eye size={16} /> Menu only — order at counter
+                  </div>
+                ) : outOfStock ? (
+                  <div className="w-full py-3 rounded-2xl font-semibold text-sm bg-gray-100 dark:bg-slate-800 text-gray-400 flex items-center justify-center gap-2">
+                    Out of stock
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-3">
+                    {!hasChoice && (
+                      <div className="flex items-center gap-1.5 bg-gray-100 dark:bg-slate-800 rounded-2xl p-1">
+                        <button
+                          onClick={() => setPopupQty((q) => Math.max(1, q - 1))}
+                          disabled={popupQty <= 1}
+                          aria-label="Decrease quantity"
+                          className="w-10 h-10 rounded-xl flex items-center justify-center bg-white dark:bg-slate-700 text-gray-700 dark:text-gray-200 shadow-sm active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                        >
+                          <Minus size={16} />
+                        </button>
+                        <span className="w-6 text-center font-bold text-gray-900 dark:text-white tabular-nums">{popupQty}</span>
+                        <button
+                          onClick={() => setPopupQty((q) => Math.min(99, q + 1))}
+                          aria-label="Increase quantity"
+                          className="w-10 h-10 rounded-xl flex items-center justify-center bg-brand-primary text-white shadow-sm active:scale-95 transition-all"
+                        >
+                          <Plus size={16} />
+                        </button>
+                      </div>
+                    )}
+                    <button
+                      onClick={() => {
+                        if (hasChoice) {
+                          handleAddItem(viewingItem)
+                          close()
+                        } else {
+                          for (let i = 0; i < popupQty; i++) addItem(viewingItem)
+                          toast.success(`${popupQty} × ${viewingItem.name} added`, { icon: '🛒' })
+                          close()
+                        }
+                      }}
+                      className="flex-1 h-12 rounded-2xl font-bold text-sm bg-brand-primary text-white shadow-lg shadow-brand-primary/30 hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                    >
+                      {hasChoice ? (
+                        <>Choose options — {priceLabel}</>
+                      ) : (
+                        <><Plus size={16} /> Add — {totalLabel}</>
+                      )}
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )
+      })()}
 
       {/* Customization selector sheet */}
       {customizeItem && (
@@ -787,8 +1059,20 @@ export default function OrderMenuPage() {
         </div>
       )}
 
+      {/* Back-to-top FAB — appears after scrolling past the hero */}
+      {showBackToTop && (
+        <button
+          onClick={scrollToTop}
+          aria-label="Back to top"
+          className={`fixed right-4 z-20 w-11 h-11 rounded-full bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 shadow-lg flex items-center justify-center text-gray-700 dark:text-gray-200 hover:scale-105 active:scale-95 transition-all ${totalItems > 0 && shop?.ordering_enabled !== false ? 'bottom-24' : 'bottom-6'}`}
+          style={{ animation: 'fadeIn 0.2s ease-out' }}
+        >
+          <ArrowUp size={18} />
+        </button>
+      )}
+
       {/* Floating cart button */}
-      {totalItems > 0 && (
+      {totalItems > 0 && shop?.ordering_enabled !== false && (
         <div
           className="fixed bottom-6 left-0 right-0 px-4 z-20"
           style={{ animation: 'slideUp 0.3s ease-out' }}
@@ -799,7 +1083,11 @@ export default function OrderMenuPage() {
               className="w-full bg-brand-primary text-white rounded-2xl p-4 flex items-center justify-between shadow-xl shadow-brand-primary ring-1 ring-white/20 dark:ring-white/10 hover:opacity-90 active:scale-[0.98] transition-all"
             >
               <div className="flex items-center gap-3">
-                <span className="w-7 h-7 bg-white/20 rounded-full flex items-center justify-center text-sm font-bold">
+                <span
+                  key={totalItems}
+                  className="w-7 h-7 bg-white/20 rounded-full flex items-center justify-center text-sm font-bold"
+                  style={{ animation: 'popIn 0.28s cubic-bezier(0.34, 1.56, 0.64, 1)' }}
+                >
                   {totalItems}
                 </span>
                 <span className="font-semibold">View Cart</span>

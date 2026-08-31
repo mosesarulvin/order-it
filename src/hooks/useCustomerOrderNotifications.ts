@@ -1,14 +1,35 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
-import { notifyCustomerOrderReady, playOrderReadySound, requestNotificationPermission } from '@/lib/sound'
+import {
+  notifyCustomerOrderReady, playOrderReadySound, requestNotificationPermission,
+} from '@/lib/sound'
 import toast from 'react-hot-toast'
-import type { RealtimeChannel } from '@supabase/supabase-js'
+import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 
 const ORDERS_KEY = (slug: string) => `orderit-orders-${slug}`
 
-export function useCustomerOrderNotifications(slug?: string, currentOrderId?: string) {
+interface OrderRow {
+  id:           string
+  order_number: string
+  status:       string
+}
+
+/**
+ * Subscribes to status changes for a customer's recent orders on a single
+ * realtime channel, in contrast to the previous one-channel-per-order pattern
+ * which scales poorly. The `filter` argument uses PostgREST's `in.(...)` syntax
+ * so a single Postgres change subscription can match any of the tracked ids.
+ *
+ * The set of tracked order IDs is derived from:
+ *   • whatever the caller explicitly wants to watch (currentOrderIds), and
+ *   • the recent-orders cache written by OrderSuccessPage.
+ */
+export function useCustomerOrderNotifications(
+  slug?: string,
+  currentOrderIds?: string | string[],
+) {
   const [permission, setPermission] = useState<NotificationPermission | 'unsupported'>('default')
-  const channelsRef = useRef<RealtimeChannel[]>([])
+  const channelRef = useRef<RealtimeChannel | null>(null)
 
   useEffect(() => {
     if (typeof window !== 'undefined' && 'Notification' in window) {
@@ -16,7 +37,7 @@ export function useCustomerOrderNotifications(slug?: string, currentOrderId?: st
     }
   }, [])
 
-  const handleRequestPermission = async () => {
+  const handleRequestPermission = useCallback(async () => {
     const perm = await requestNotificationPermission()
     setPermission(perm)
     if (perm === 'granted') {
@@ -25,88 +46,82 @@ export function useCustomerOrderNotifications(slug?: string, currentOrderId?: st
     } else if (perm === 'denied') {
       toast.error('Notification permission was blocked in browser settings.')
     }
-  }
+  }, [])
+
+  // Build a stable, deduplicated list of order IDs to monitor.
+  const idsSignature = Array.isArray(currentOrderIds)
+    ? currentOrderIds.slice().sort().join(',')
+    : currentOrderIds ?? ''
 
   useEffect(() => {
     if (!slug) return
 
-    // Unsubscribe from previous channels
-    channelsRef.current.forEach((ch) => ch.unsubscribe())
-    channelsRef.current = []
-
-    // Collect order IDs to monitor
-    const idsToMonitor = new Set<string>()
-    if (currentOrderId) {
-      idsToMonitor.add(currentOrderId)
-    }
+    const ids = new Set<string>()
+    if (Array.isArray(currentOrderIds)) currentOrderIds.forEach((id) => id && ids.add(id))
+    else if (currentOrderIds) ids.add(currentOrderIds)
 
     const saved = localStorage.getItem(ORDERS_KEY(slug))
     if (saved) {
       try {
         const parsed = JSON.parse(saved)
-        parsed.forEach((e: any) => {
-          const id = typeof e === 'string' ? e : e?.id
-          if (id) idsToMonitor.add(id)
-        })
-      } catch (e) {
-        console.error('Error parsing stored orders:', e)
-      }
+        for (const entry of parsed) {
+          const id = typeof entry === 'string' ? entry : entry?.id
+          if (id) ids.add(id)
+        }
+      } catch { /* ignore malformed cache */ }
     }
 
-    if (idsToMonitor.size === 0) return
+    if (ids.size === 0) return
 
-    const newChannels: RealtimeChannel[] = []
+    const filter = `id=in.(${Array.from(ids).join(',')})`
+    const channel = supabase
+      .channel(`customer-orders-${slug}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'orders', filter },
+        (payload: RealtimePostgresChangesPayload<OrderRow>) => {
+          const updated = payload.new as OrderRow
+          if (!updated || updated.status !== 'ready') return
 
-    // Subscribe to each monitored order
-    idsToMonitor.forEach((id) => {
-      const channel = supabase
-        .channel(`customer-order-${id}`)
-        .on(
-          'postgres_changes',
-          { event: 'UPDATE', schema: 'public', table: 'orders', filter: `id=eq.${id}` },
-          (payload) => {
-            const updatedOrder = payload.new as { id: string; order_number: string; status: string }
-            if (updatedOrder.status === 'ready') {
-              const notifiedKey = `notified-ready-${updatedOrder.id}`
-              if (!sessionStorage.getItem(notifiedKey)) {
-                sessionStorage.setItem(notifiedKey, 'true')
-                notifyCustomerOrderReady(updatedOrder.order_number)
-                toast.success(`🎉 Order #${updatedOrder.order_number} is ready for pickup!`, {
-                  duration: 8000,
-                  icon: '🔔',
-                  style: {
-                    borderRadius: '16px',
-                    background: '#10B981',
-                    color: '#fff',
-                    fontWeight: 'bold',
-                  },
-                })
-              }
-            }
-          }
-        )
-        .subscribe()
+          const notifiedKey = `notified-ready-${updated.id}`
+          if (sessionStorage.getItem(notifiedKey)) return
+          sessionStorage.setItem(notifiedKey, 'true')
 
-      newChannels.push(channel)
-    })
+          notifyCustomerOrderReady(updated.order_number)
+          toast.success(`🎉 Order #${updated.order_number} is ready for pickup!`, {
+            duration: 8000,
+            icon: '🔔',
+            style: {
+              borderRadius: '16px',
+              background:   '#10B981',
+              color:        '#fff',
+              fontWeight:   'bold',
+            },
+          })
+        },
+      )
+      .subscribe()
 
-    channelsRef.current = newChannels
+    channelRef.current = channel
 
     return () => {
-      newChannels.forEach((ch) => ch.unsubscribe())
+      channel.unsubscribe()
+      channelRef.current = null
     }
-  }, [slug, currentOrderId])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug, idsSignature])
+
+  const triggerReadyAlert = useCallback((orderNumber: string, orderId: string) => {
+    const key = `notified-ready-${orderId}`
+    if (sessionStorage.getItem(key)) return
+    sessionStorage.setItem(key, 'true')
+    notifyCustomerOrderReady(orderNumber)
+  }, [])
 
   return {
     permission,
     requestPermission: handleRequestPermission,
-    playSound: playOrderReadySound,
-    triggerReadyAlert: (orderNumber: string, orderId: string) => {
-      const notifiedKey = `notified-ready-${orderId}`
-      if (!sessionStorage.getItem(notifiedKey)) {
-        sessionStorage.setItem(notifiedKey, 'true')
-        notifyCustomerOrderReady(orderNumber)
-      }
-    },
+    playSound:         playOrderReadySound,
+    triggerReadyAlert,
   }
 }

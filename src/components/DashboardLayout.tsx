@@ -216,6 +216,39 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex h-screen bg-gray-50 dark:bg-slate-950 overflow-hidden">
+      {/* Suspended shop guard */}
+      {shop?.status === 'suspended' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-50 dark:bg-slate-950 p-6">
+          <div className="text-center max-w-md">
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-2xl mb-4">
+              <Shield className="text-red-600 dark:text-red-400" size={32} />
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Shop Suspended</h2>
+            <p className="text-gray-500 dark:text-gray-400 mb-4">
+              Your shop has been suspended and is not accessible to customers.
+            </p>
+            {shop.suspend_reason && (
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4 text-sm text-red-700 dark:text-red-300 mb-4">
+                <strong>Reason:</strong> {shop.suspend_reason}
+              </div>
+            )}
+            <p className="text-sm text-gray-400 dark:text-gray-500">
+              Contact{' '}
+              <a href="mailto:support@orderit.app" className="text-orange-500 underline">
+                support@orderit.app
+              </a>{' '}
+              to appeal.
+            </p>
+            <button
+              onClick={async () => { await signOut(); navigate('/login') }}
+              className="mt-6 text-sm text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 underline"
+            >
+              Sign out
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Desktop sidebar */}
       <div className="hidden lg:flex h-full">
         <Sidebar />

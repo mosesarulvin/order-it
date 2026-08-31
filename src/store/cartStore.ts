@@ -97,7 +97,7 @@ export const useCartStore = create<CartStore>()(
         })
       },
 
-      clearCart: () => set({ items: [], shopSlug: null }),
+      clearCart: () => set({ items: [], shopSlug: null, orderType: 'dine_in' }),
 
       setShopSlug: (slug: string) => set({ shopSlug: slug }),
 

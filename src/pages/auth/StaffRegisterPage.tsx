@@ -13,7 +13,7 @@ export default function StaffRegisterPage() {
   const navigate = useNavigate()
   const { refreshShop } = useAuth()
   const [loading, setLoading] = useState(true)
-  const [invite, setInvite] = useState<any>(null)
+  const [invite, setInvite] = useState<{ shop_name: string; role: string; expires_at: string; is_valid: boolean } | null>(null)
   
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -22,16 +22,13 @@ export default function StaffRegisterPage() {
   useEffect(() => {
     async function loadInvite() {
       if (!inviteId) return
-      const { data, error } = await supabase
-        .from('shop_invites')
-        .select('*, shop:shop_id(name)')
-        .eq('id', inviteId)
-        .maybeSingle()
-        
-      if (error || !data) {
+      const { data, error } = await supabase.rpc('get_invite_preview', { p_invite_id: inviteId })
+
+      const preview = data?.[0] ?? null
+      if (error || !preview || !preview.is_valid) {
         toast.error('Invalid or expired invite link.')
       } else {
-        setInvite(data)
+        setInvite(preview)
       }
       setLoading(false)
     }
@@ -54,7 +51,7 @@ export default function StaffRegisterPage() {
       if (!authData.user) throw new Error('Failed to create account')
 
       // 2. Accept the invite (which bypasses RLS to assign the role)
-      const { data: rpcData, error: rpcError } = await supabase.rpc('accept_invite', { p_invite_id: invite.id })
+      const { data: rpcData, error: rpcError } = await supabase.rpc('accept_invite', { p_invite_id: inviteId })
       
       if (rpcError) throw rpcError
 
@@ -105,7 +102,7 @@ export default function StaffRegisterPage() {
           </div>
         </div>
         <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900 dark:text-white">
-          Join {invite.shop?.name}
+          Join {invite.shop_name}
         </h2>
         <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
           You have been invited to join as a <strong className="capitalize">{invite.role}</strong>.

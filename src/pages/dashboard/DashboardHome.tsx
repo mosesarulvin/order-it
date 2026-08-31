@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useMemo } from 'react'
+import { useEffect, useRef, useState, useMemo, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import {
   TrendingUp,
@@ -30,6 +30,8 @@ import { useAuth } from '@/contexts/AuthContext'
 import { formatCurrency } from '@/lib/utils'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Skeleton } from '@/components/ui/Skeleton'
+import { useDebouncedCallback } from '@/hooks/useDebouncedCallback'
+import { captureException } from '@/lib/observability'
 import type { MenuItem, DashboardStats } from '@/types'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 
@@ -68,58 +70,61 @@ export default function DashboardHome() {
   useEffect(() => {
     if (!shop) return
     fetchData()
-    // Subscribe to order changes so stats update live
+    const refresh = () => { fetchData() }
     const channel = supabase
       .channel(`dashboard-${shop.id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `shop_id=eq.${shop.id}` }, () => {
-        fetchData()
-      })
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'orders', filter: `shop_id=eq.${shop.id}` },
+        () => { debouncedRefresh(refresh) },
+      )
       .subscribe()
     channelRef.current = channel
     return () => { channel.unsubscribe() }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shop])
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     if (!shop) return
     setLoading(true)
 
-    const thirtyDaysAgo = new Date()
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+    const windowStart = new Date()
+    windowStart.setDate(windowStart.getDate() - (timeRange === '30days' ? 30 : 7))
 
-    const [statsRes, lowStockRes, allOrdersRes, reviewsRes] = await Promise.all([
+    const [statsRes, lowStockRes, ordersRes, reviewsRes] = await Promise.all([
       supabase.rpc('get_dashboard_stats', { p_shop_id: shop.id }),
       supabase
         .from('menu_items')
-        .select('*')
+        .select('id, shop_id, name, stock_quantity, low_stock_threshold, is_available, price')
         .eq('shop_id', shop.id)
         .not('stock_quantity', 'is', null),
       supabase
         .from('orders')
         .select('id, total, status, payment_method, order_source, created_at, order_items(name, quantity, subtotal)')
         .eq('shop_id', shop.id)
-        .gte('created_at', thirtyDaysAgo.toISOString())
-        .order('created_at', { ascending: true }),
+        .gte('created_at', windowStart.toISOString())
+        .order('created_at', { ascending: true })
+        .limit(2000),
       supabase
         .from('reviews')
         .select('rating')
         .eq('shop_id', shop.id)
+        .limit(500),
     ])
 
-    if (statsRes.data) {
-      setStats(statsRes.data as DashboardStats)
-    }
+    if (statsRes.error) captureException(statsRes.error, { where: 'DashboardHome.stats' })
+    if (statsRes.data) setStats(statsRes.data as DashboardStats)
 
     const allTracked = (lowStockRes.data as MenuItem[]) || []
     setLowStockItems(allTracked.filter((i) => i.stock_quantity !== null && i.stock_quantity <= i.low_stock_threshold))
 
-    // Process analytics data
-    const ordersList = allOrdersRes.data || []
+    const ordersList  = ordersRes.data  || []
     const reviewsList = reviewsRes.data || []
-
-    const computedAnalytics = processAnalytics(ordersList, reviewsList)
-    setAnalytics(computedAnalytics)
+    setAnalytics(processAnalytics(ordersList, reviewsList))
     setLoading(false)
-  }
+  }, [shop, timeRange])
+
+  const debouncedRefresh = useDebouncedCallback((run: () => void) => run(), 400)
 
   const chartData = useMemo(() => {
     if (!analytics) return []

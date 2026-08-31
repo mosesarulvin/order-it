@@ -1,24 +1,25 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Plus, Minus, Trash2, CheckCircle, Search, Star, Flame } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
-import { formatCurrency, generateOrderNumber } from '@/lib/utils'
+import { formatCurrency } from '@/lib/utils'
+import { placeWalkinOrder, humanizeError } from '@/lib/api/customerOrders'
 import type { MenuItem, MenuCategory, PaymentMethod } from '@/types'
 import toast from 'react-hot-toast'
 
 interface CartEntry {
-  item: MenuItem
+  item:     MenuItem
   quantity: number
 }
 
 export default function WalkInPage() {
   const { shop } = useAuth()
   const [categories, setCategories] = useState<MenuCategory[]>([])
-  const [items, setItems] = useState<MenuItem[]>([])
-  const [loading, setLoading] = useState(true)
+  const [items,      setItems]      = useState<MenuItem[]>([])
+  const [loading,    setLoading]    = useState(true)
   const [activeCategory, setActiveCategory] = useState<string>('all')
   const [search, setSearch] = useState('')
-  const [cart, setCart] = useState<CartEntry[]>([])
+  const [cart,   setCart]   = useState<CartEntry[]>([])
   const [customerName, setCustomerName] = useState('')
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash')
   const [orderType, setOrderType] = useState<'dine_in' | 'takeaway'>('dine_in')
@@ -27,27 +28,38 @@ export default function WalkInPage() {
 
   useEffect(() => {
     if (!shop) return
+    if (shop.accepts_upi && !shop.accepts_cash) setPaymentMethod('upi')
+    else setPaymentMethod('cash')
+  }, [shop])
+
+  useEffect(() => {
+    if (!shop) return
+    let cancelled = false
     Promise.all([
-      supabase
-        .from('menu_categories')
+      supabase.from('menu_categories')
+        .select('id, name, sort_order, is_active, shop_id, description, created_at')
+        .eq('shop_id', shop.id).eq('is_active', true).order('sort_order'),
+      supabase.from('menu_items')
         .select('*')
-        .eq('shop_id', shop.id)
-        .eq('is_active', true)
-        .order('sort_order'),
-      supabase
-        .from('menu_items')
-        .select('*')
-        .eq('shop_id', shop.id)
-        .eq('is_available', true)
-        .order('sort_order'),
+        .eq('shop_id', shop.id).eq('is_available', true).order('sort_order'),
     ]).then(([catRes, itemRes]) => {
+      if (cancelled) return
+      if (catRes.error || itemRes.error) {
+        toast.error('Failed to load menu')
+        console.error('WalkInPage load error:', catRes.error ?? itemRes.error)
+      }
       setCategories(catRes.data ?? [])
-      setItems(itemRes.data ?? [])
+      setItems((itemRes.data as MenuItem[]) ?? [])
       setLoading(false)
     })
+    return () => { cancelled = true }
   }, [shop])
 
   const addToCart = (item: MenuItem) => {
+    if (item.is_display_only) {
+      toast.error(`"${item.name}" is display-only — cannot be ordered`)
+      return
+    }
     setCart((prev) => {
       const existing = prev.find((e) => e.item.id === item.id)
       if (existing) return prev.map((e) => e.item.id === item.id ? { ...e, quantity: e.quantity + 1 } : e)
@@ -56,24 +68,35 @@ export default function WalkInPage() {
   }
 
   const updateQty = (itemId: string, delta: number) => {
-    setCart((prev) =>
-      prev
-        .map((e) => e.item.id === itemId ? { ...e, quantity: e.quantity + delta } : e)
-        .filter((e) => e.quantity > 0)
-    )
+    setCart((prev) => prev
+      .map((e) => e.item.id === itemId ? { ...e, quantity: e.quantity + delta } : e)
+      .filter((e) => e.quantity > 0))
   }
 
-  const removeFromCart = (itemId: string) => {
-    setCart((prev) => prev.filter((e) => e.item.id !== itemId))
-  }
+  const removeFromCart = (itemId: string) => setCart((prev) => prev.filter((e) => e.item.id !== itemId))
 
-  const subtotal = cart.reduce((sum, e) => sum + e.item.price * e.quantity, 0)
-  const packingCharge = orderType === 'takeaway' ? cart.reduce((sum, e) => sum + ((e.item.takeaway_price || 0) * e.quantity), 0) : 0
-  const taxAmount = shop ? Math.round((subtotal + packingCharge) * (shop.tax_percent / 100) * 100) / 100 : 0
+  const subtotal = useMemo(
+    () => cart.reduce((sum, e) => sum + e.item.price * e.quantity, 0),
+    [cart],
+  )
+  const packingCharge = useMemo(
+    () => orderType === 'takeaway'
+      ? cart.reduce((sum, e) => sum + ((e.item.takeaway_price || 0) * e.quantity), 0)
+      : 0,
+    [cart, orderType],
+  )
+  const taxAmount = useMemo(
+    () => shop ? Math.round((subtotal + packingCharge) * (shop.tax_percent / 100) * 100) / 100 : 0,
+    [shop, subtotal, packingCharge],
+  )
   const total = subtotal + packingCharge + taxAmount
 
-  const searchedItems = items.filter(i => !search || i.name.toLowerCase().includes(search.toLowerCase()) || i.description?.toLowerCase().includes(search.toLowerCase()))
-
+  const searchLower = search.toLowerCase()
+  const searchedItems = search
+    ? items.filter((i) =>
+        i.name.toLowerCase().includes(searchLower) ||
+        i.description?.toLowerCase().includes(searchLower))
+    : items
   const filteredItems = activeCategory === 'all'
     ? searchedItems
     : searchedItems.filter((i) => i.category_id === activeCategory)
@@ -83,96 +106,28 @@ export default function WalkInPage() {
   const placeOrder = async () => {
     if (cart.length === 0) { toast.error('Add items to the order'); return }
     if (!shop) return
+    if (!shop.accepts_cash && !shop.accepts_upi) {
+      toast.error('No payment methods configured. Update shop settings.')
+      return
+    }
     setPlacing(true)
-
     try {
-      // Check stock
-      const itemIds = cart.map((e) => e.item.id)
-      const { data: menuItems, error: miErr } = await supabase
-        .from('menu_items')
-        .select('id, name, is_available, is_instant, stock_quantity')
-        .in('id', itemIds)
-      if (miErr) throw new Error('Could not verify item availability')
+      const placed = await placeWalkinOrder({
+        shopId:        shop.id,
+        items:         cart.map((e) => ({ menu_item_id: e.item.id, quantity: e.quantity })),
+        customerName:  customerName,
+        orderType,
+        paymentMethod,
+      })
 
-      for (const entry of cart) {
-        const m = (menuItems ?? []).find((m) => m.id === entry.item.id)
-        if (!m?.is_available) { toast.error(`"${entry.item.name}" is no longer available`); setPlacing(false); return }
-        if (m.stock_quantity !== null && entry.quantity > m.stock_quantity) {
-          toast.error(`Not enough stock for "${entry.item.name}" (only ${m.stock_quantity} left)`)
-          setPlacing(false)
-          return
-        }
-      }
-
-      const allInstant = (menuItems ?? []).every((m) => m.is_instant)
-      const orderStatus = allInstant ? 'ready' : 'pending'
-      const orderNumber = generateOrderNumber()
-
-      const { data: order, error: orderErr } = await supabase
-        .from('orders')
-        .insert({
-          shop_id: shop.id,
-          order_number: orderNumber,
-          customer_name: customerName.trim() || 'Walk-in Guest',
-          customer_phone: 'Walk-in',
-          status: orderStatus,
-          payment_method: paymentMethod,
-          payment_status: 'pending',
-          order_type: orderType,
-          is_anonymous: false,
-          order_source: 'walkin',
-          coupon_code: null,
-          discount_amount: 0,
-          subtotal,
-          tax_amount: taxAmount,
-          packing_charge: packingCharge,
-          total,
-        })
-        .select()
-        .single()
-
-      if (orderErr || !order) throw new Error(orderErr?.message || 'Failed to create order')
-
-      const orderItems = cart.map((entry) => ({
-        order_id: order.id,
-        menu_item_id: entry.item.id,
-        name: entry.item.name,
-        price: entry.item.price,
-        quantity: entry.quantity,
-        subtotal: entry.item.price * entry.quantity,
-        customizations: [],
-      }))
-
-      const { error: itemsErr } = await supabase.from('order_items').insert(orderItems)
-      if (itemsErr) throw new Error(itemsErr.message)
-
-      // Deduct stock
-      for (const entry of cart) {
-        const m = (menuItems ?? []).find((m) => m.id === entry.item.id)
-        if (m && m.stock_quantity !== null) {
-          await supabase
-            .from('menu_items')
-            .update({ stock_quantity: Math.max(0, m.stock_quantity - entry.quantity) })
-            .eq('id', entry.item.id)
-          await supabase.from('stock_logs').insert({
-            shop_id: shop.id,
-            menu_item_id: entry.item.id,
-            item_name: entry.item.name,
-            delta: -entry.quantity,
-            reason: 'order',
-            note: orderNumber,
-          })
-        }
-      }
-
-      // Success — reset
-      setLastOrder({ orderNumber })
+      localStorage.setItem(`tracking-${placed.order_id}`, placed.tracking_token)
+      setLastOrder({ orderNumber: placed.order_number })
       setCart([])
       setCustomerName('')
-      setPaymentMethod('cash')
+      setPaymentMethod(shop.accepts_cash ? 'cash' : 'upi')
       setOrderType('dine_in')
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Something went wrong')
+      toast.error(humanizeError(err))
     } finally {
       setPlacing(false)
     }
@@ -188,7 +143,7 @@ export default function WalkInPage() {
 
   return (
     <div className={`${(cart.length > 0 || lastOrder) ? 'max-w-6xl' : 'max-w-4xl'} mx-auto w-full flex flex-col md:flex-row gap-6 items-start transition-all duration-300`}>
-      {/* ── Left: Menu Card ── */}
+      {/* Menu */}
       <div className="flex-1 flex flex-col min-h-0 bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm overflow-hidden w-full">
         <div className="px-5 py-4 border-b border-gray-100 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col sm:flex-row gap-3 justify-between items-start sm:items-center">
           <h2 className="font-bold text-gray-900 dark:text-white text-lg">Walk-in Order</h2>
@@ -204,7 +159,6 @@ export default function WalkInPage() {
           </div>
         </div>
 
-        {/* Category tabs */}
         <div className="flex gap-2 px-5 py-2.5 overflow-x-auto bg-white dark:bg-slate-900 border-b border-gray-100 dark:border-slate-800 no-scrollbar">
           <button
             onClick={() => setActiveCategory('all')}
@@ -223,7 +177,6 @@ export default function WalkInPage() {
           ))}
         </div>
 
-        {/* Items list */}
         <div className="flex-1 overflow-y-auto p-4 space-y-3 max-h-[calc(100vh-220px)]">
           {filteredItems.length === 0 && (
             <p className="text-center text-gray-400 dark:text-gray-500 text-sm py-10">No items in this category</p>
@@ -262,7 +215,11 @@ export default function WalkInPage() {
                   </div>
                   <div className="flex items-center justify-between mt-2">
                     <p className="font-bold text-orange-600 dark:text-orange-400">{formatCurrency(item.price)}</p>
-                    {qty === 0 ? (
+                    {item.is_display_only ? (
+                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800/40 px-2.5 py-1 rounded-lg">
+                        Menu only
+                      </span>
+                    ) : qty === 0 ? (
                       <button
                         onClick={() => addToCart(item)}
                         className="flex items-center gap-1 h-7 sm:h-8 px-3 bg-orange-500 text-white rounded-lg sm:rounded-xl text-xs sm:text-sm font-semibold hover:bg-orange-600 transition-all active:scale-95 shadow-sm"
@@ -271,17 +228,11 @@ export default function WalkInPage() {
                       </button>
                     ) : (
                       <div className="flex items-center gap-1 sm:gap-1.5 bg-gray-50 dark:bg-slate-700/50 rounded-lg sm:rounded-xl p-1 border border-gray-100 dark:border-slate-700">
-                        <button
-                          onClick={() => updateQty(item.id, -1)}
-                          className="w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center rounded-md sm:rounded-lg bg-white dark:bg-slate-700 text-gray-500 dark:text-gray-300 shadow-sm hover:opacity-90 transition-colors"
-                        >
+                        <button onClick={() => updateQty(item.id, -1)} className="w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center rounded-md sm:rounded-lg bg-white dark:bg-slate-700 text-gray-500 dark:text-gray-300 shadow-sm hover:opacity-90 transition-colors">
                           <Minus size={12} />
                         </button>
                         <span className="w-4 sm:w-5 text-center text-xs sm:text-sm font-bold text-gray-900 dark:text-white">{qty}</span>
-                        <button
-                          onClick={() => updateQty(item.id, 1)}
-                          className="w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center rounded-md sm:rounded-lg bg-orange-500 text-white shadow-sm hover:opacity-90 transition-colors"
-                        >
+                        <button onClick={() => updateQty(item.id, 1)} className="w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center rounded-md sm:rounded-lg bg-orange-500 text-white shadow-sm hover:opacity-90 transition-colors">
                           <Plus size={12} />
                         </button>
                       </div>
@@ -294,10 +245,9 @@ export default function WalkInPage() {
         </div>
       </div>
 
-      {/* ── Right: Order Panel Card (shown only when items added or order placed) ── */}
+      {/* Order panel */}
       {(cart.length > 0 || lastOrder) && (
         <div className="w-full md:w-80 lg:w-96 flex-shrink-0 flex flex-col bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm overflow-hidden transition-all duration-200">
-          {/* Success banner */}
           {lastOrder && (
             <div className="m-3 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-2xl p-4 flex items-start gap-3">
               <CheckCircle size={20} className="text-green-600 dark:text-green-500 flex-shrink-0 mt-0.5" />
@@ -315,16 +265,12 @@ export default function WalkInPage() {
               <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{cart.length} {cart.length === 1 ? 'item' : 'items'} selected</p>
             </div>
             {cart.length > 0 && (
-              <button
-                onClick={() => setCart([])}
-                className="text-xs text-red-500 hover:text-red-600 font-medium hover:underline"
-              >
+              <button onClick={() => setCart([])} className="text-xs text-red-500 hover:text-red-600 font-medium hover:underline">
                 Clear all
               </button>
             )}
           </div>
 
-          {/* Cart items */}
           <div className="flex-1 overflow-y-auto p-3 space-y-2 max-h-[calc(100vh-380px)] min-h-[120px]">
             {cart.map((entry) => (
               <div key={entry.item.id} className="flex items-center gap-2 bg-gray-50 dark:bg-slate-800/60 rounded-xl border border-gray-100 dark:border-slate-700/60 p-3 shadow-sm">
@@ -349,70 +295,61 @@ export default function WalkInPage() {
             ))}
           </div>
 
-          {/* Order details + totals */}
           {cart.length > 0 && (
             <div className="border-t border-gray-100 dark:border-slate-800 bg-gray-50/50 dark:bg-slate-900/50 p-4 space-y-3">
               <div className="space-y-1">
-                <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
-                  <span>Subtotal</span><span>{formatCurrency(subtotal)}</span>
-                </div>
-                {packingCharge > 0 && (
-                  <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
-                    <span>Packing Charge</span><span>{formatCurrency(packingCharge)}</span>
-                  </div>
-                )}
-                {taxAmount > 0 && (
-                  <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
-                    <span>Tax ({shop?.tax_percent}%)</span><span>{formatCurrency(taxAmount)}</span>
-                  </div>
-                )}
+                <Row label="Subtotal" value={formatCurrency(subtotal)} />
+                {packingCharge > 0 && <Row label="Packing Charge" value={formatCurrency(packingCharge)} />}
+                {taxAmount    > 0 && <Row label={`Tax (${shop?.tax_percent}%)`} value={formatCurrency(taxAmount)} />}
                 <div className="flex justify-between text-sm font-bold text-gray-900 dark:text-white pt-1.5 border-t border-gray-200 dark:border-slate-800">
                   <span>Total</span><span className="text-orange-600">{formatCurrency(total)}</span>
                 </div>
               </div>
 
-              {/* Customer name */}
               <input
                 type="text"
                 placeholder="Customer name (optional)"
                 value={customerName}
                 onChange={(e) => setCustomerName(e.target.value)}
+                maxLength={100}
                 className="w-full h-9 px-3 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 outline-none focus:border-orange-400 transition-colors"
               />
 
               <div className="flex gap-2">
-                <button
-                  onClick={() => setOrderType('dine_in')}
-                  className={`flex-1 py-2 rounded-xl text-xs font-semibold capitalize transition-colors border ${orderType === 'dine_in' ? 'bg-orange-500 text-white border-orange-500' : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-slate-700 hover:border-orange-300 dark:hover:border-orange-500/50'}`}
-                >
-                  Dine-in
-                </button>
-                <button
-                  onClick={() => setOrderType('takeaway')}
-                  className={`flex-1 py-2 rounded-xl text-xs font-semibold capitalize transition-colors border ${orderType === 'takeaway' ? 'bg-orange-500 text-white border-orange-500' : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-slate-700 hover:border-orange-300 dark:hover:border-orange-500/50'}`}
-                >
-                  Takeaway
-                </button>
-              </div>
-
-              {/* Payment method */}
-              <div className="flex gap-2">
-                {(['cash', 'upi'] as PaymentMethod[]).map((m) => (
+                {(['dine_in', 'takeaway'] as const).map((t) => (
                   <button
-                    key={m}
-                    onClick={() => setPaymentMethod(m)}
-                    className={`flex-1 py-2 rounded-xl text-xs font-semibold capitalize transition-colors border ${paymentMethod === m ? 'bg-orange-500 text-white border-orange-500' : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-slate-700 hover:border-orange-300 dark:hover:border-orange-500/50'}`}
+                    key={t}
+                    onClick={() => setOrderType(t)}
+                    className={`flex-1 py-2 rounded-xl text-xs font-semibold capitalize transition-colors border ${orderType === t ? 'bg-orange-500 text-white border-orange-500' : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-slate-700 hover:border-orange-300 dark:hover:border-orange-500/50'}`}
                   >
-                    {m === 'upi' ? 'UPI' : 'Cash'}
+                    {t === 'dine_in' ? 'Dine-in' : 'Takeaway'}
                   </button>
                 ))}
               </div>
 
-              {/* Place order */}
+              <div className="flex gap-2">
+                {shop?.accepts_cash && (
+                  <button
+                    onClick={() => setPaymentMethod('cash')}
+                    className={`flex-1 py-2 rounded-xl text-xs font-semibold transition-colors border ${paymentMethod === 'cash' ? 'bg-orange-500 text-white border-orange-500' : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-slate-700'}`}
+                  >
+                    💵 Cash
+                  </button>
+                )}
+                {shop?.accepts_upi && (
+                  <button
+                    onClick={() => setPaymentMethod('upi')}
+                    className={`flex-1 py-2 rounded-xl text-xs font-semibold transition-colors border ${paymentMethod === 'upi' ? 'bg-orange-500 text-white border-orange-500' : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-slate-700'}`}
+                  >
+                    📱 UPI
+                  </button>
+                )}
+              </div>
+
               <button
                 onClick={placeOrder}
-                disabled={placing || cart.length === 0}
-                className="w-full py-3 rounded-2xl bg-orange-500 text-white font-semibold text-sm hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-[0.98] shadow-sm"
+                disabled={placing}
+                className="w-full py-3 rounded-xl bg-orange-500 text-white font-semibold text-sm hover:bg-orange-600 disabled:opacity-50 transition-all"
               >
                 {placing ? 'Placing...' : `Place Order · ${formatCurrency(total)}`}
               </button>
@@ -420,6 +357,14 @@ export default function WalkInPage() {
           )}
         </div>
       )}
+    </div>
+  )
+}
+
+function Row({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
+      <span>{label}</span><span>{value}</span>
     </div>
   )
 }

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Store, Phone, DollarSign, Globe, Clock, Tag, Star, Zap, Palette, Image as ImageIcon, Upload, Trash2, CheckCircle2, Wallet, Banknote } from 'lucide-react'
+import { Store, Phone, DollarSign, Globe, Clock, Tag, Star, Zap, Palette, Image as ImageIcon, Upload, Trash2, CheckCircle2, Wallet, Banknote, ShoppingBag } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/Button'
@@ -18,6 +18,7 @@ const schema = z.object({
   address: z.string().optional(),
   tax_percent: z.number().min(0).max(100),
   is_open: z.boolean(),
+  ordering_enabled: z.boolean(),
   coupons_enabled: z.boolean(),
   reviews_enabled: z.boolean(),
   accepts_upi: z.boolean(),
@@ -47,6 +48,7 @@ export default function SettingsPage() {
       address: shop?.address || '',
       tax_percent: shop?.tax_percent || 0,
       is_open: shop?.is_open ?? true,
+      ordering_enabled: shop?.ordering_enabled ?? true,
       coupons_enabled: shop?.coupons_enabled ?? true,
       reviews_enabled: shop?.reviews_enabled ?? true,
       accepts_upi: shop?.accepts_upi ?? true,
@@ -84,6 +86,7 @@ export default function SettingsPage() {
       setValue('address', shop.address || '')
       setValue('tax_percent', shop.tax_percent)
       setValue('is_open', shop.is_open)
+      setValue('ordering_enabled', shop.ordering_enabled ?? true)
       setValue('coupons_enabled', shop.coupons_enabled ?? true)
       setValue('reviews_enabled', shop.reviews_enabled ?? true)
       setValue('accepts_upi', shop.accepts_upi ?? true)
@@ -477,6 +480,31 @@ export default function SettingsPage() {
         <Card>
           <CardContent className="p-5 space-y-4">
             <h3 className="font-semibold text-gray-900 dark:text-white">Customer features</h3>
+
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-800 dark:text-gray-200 flex items-center gap-1.5">
+                  <ShoppingBag size={14} /> Accept online orders
+                </p>
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+                  {watch('ordering_enabled')
+                    ? 'Customers can browse the menu and place orders online.'
+                    : 'Menu is view-only — customers can browse but not order online.'}
+                </p>
+              </div>
+              <Toggle
+                checked={watch('ordering_enabled')}
+                onChange={(v) => setValue('ordering_enabled', v, { shouldDirty: true })}
+                label=""
+              />
+            </div>
+            {!watch('ordering_enabled') && (
+              <div className="flex items-start gap-2 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-xl p-3 text-xs text-blue-800 dark:text-blue-300">
+                <ShoppingBag size={13} className="flex-shrink-0 mt-0.5 text-blue-500" />
+                <span>The “Add to cart” controls are hidden from the customer menu. A banner tells them where to order instead.</span>
+              </div>
+            )}
+
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-800 dark:text-gray-200 flex items-center gap-1.5"><Tag size={14} /> Coupon codes</p>
