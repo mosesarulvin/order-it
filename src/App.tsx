@@ -1,10 +1,9 @@
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes, useParams, Outlet } from 'react-router-dom'
 import { useState, lazy, Suspense } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import DashboardLayout from '@/components/DashboardLayout'
 import { SplashScreen } from '@/components/SplashScreen'
 import { useShopTheme } from '@/hooks/useShopTheme'
-import { useParams, Outlet } from 'react-router-dom'
 
 // Lazy loaded pages
 const DashboardHome = lazy(() => import('@/pages/dashboard/DashboardHome'))
