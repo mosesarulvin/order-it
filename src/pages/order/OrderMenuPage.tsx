@@ -780,7 +780,7 @@ export default function OrderMenuPage() {
         const priceLabel = viewingItem.variants && viewingItem.variants.length > 0
           ? `From ${formatCurrency(viewingItem.price)}`
           : formatCurrency(viewingItem.price)
-        const totalLabel = formatCurrency(viewingItem.price * popupQty)
+        // const totalLabel = formatCurrency(viewingItem.price * popupQty)
         const close = () => setViewingItem(null)
 
         return (
