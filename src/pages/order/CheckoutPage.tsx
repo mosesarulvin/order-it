@@ -45,7 +45,6 @@ export default function CheckoutPage() {
 
   const identity = slug ? getCachedIdentity(slug) : null
   const sessionToken = slug ? getSessionToken(slug) : null
-  const isAnonymous = !sessionToken
 
   const {
     items, updateQuantityAt, removeItemAt, getTotalPrice, clearCart,
@@ -147,6 +146,11 @@ export default function CheckoutPage() {
       toast.error('No payment methods are available for this shop')
       return
     }
+    if (!sessionToken) {
+      toast.error('Please sign in to continue')
+      navigate(`/order/${slug}/profile`, { replace: true })
+      return
+    }
 
     setLoading(true)
     try {
@@ -158,7 +162,7 @@ export default function CheckoutPage() {
         paymentMethod,
         notes:         notes.trim() || null,
         couponCode:    appliedCoupon?.code ?? null,
-        isAnonymous,
+        isAnonymous:  false,
       })
 
       orderPlacedRef.current = true

@@ -24,20 +24,20 @@ import type { CartItem } from '@/types'
 import toast from 'react-hot-toast'
 
 interface ProfileData {
-  id:         string
-  name:       string
-  phone:      string
-  email:      string | null
-  birthday?:  string | null
+  id: string
+  name: string
+  phone: string
+  email: string | null
+  birthday?: string | null
 }
 
 type TabKey = 'orders' | 'coupons' | 'account'
 
 const STATUS_PILLS: Record<string, string> = {
-  pending:   'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400 border border-yellow-200 dark:border-yellow-800/40',
+  pending: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400 border border-yellow-200 dark:border-yellow-800/40',
   confirmed: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400 border border-blue-200 dark:border-blue-800/40',
   preparing: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400 border border-orange-200 dark:border-orange-800/40',
-  ready:     'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/40',
+  ready: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/40',
   completed: 'bg-gray-100 text-gray-700 dark:bg-slate-800 dark:text-gray-400 border border-gray-200 dark:border-slate-700',
   cancelled: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 border border-red-200 dark:border-red-800/40',
 }
@@ -68,9 +68,9 @@ export default function ProfileDashboardPage() {
   const token = slug ? getSessionToken(slug) : null
 
   const [profile, setProfile] = useState<ProfileData | null>(null)
-  const [shop,    setShop]    = useState<InvoiceShopData | null>(null)
+  const [shop, setShop] = useState<InvoiceShopData | null>(null)
   const [coupons, setCoupons] = useState<CustomerCoupon[]>([])
-  const [orders,  setOrders]  = useState<CustomerOrderSummary[]>([])
+  const [orders, setOrders] = useState<CustomerOrderSummary[]>([])
   const [loading, setLoading] = useState(true)
   const [reorderingId, setReorderingId] = useState<string | null>(null)
   const [copiedCode, setCopiedCode] = useState<string | null>(null)
@@ -85,13 +85,17 @@ export default function ProfileDashboardPage() {
     [orders],
   )
   const unusedCoupons = useMemo(() => coupons.filter((c) => !c.used_at), [coupons])
-  const usedCoupons   = useMemo(() => coupons.filter((c) => !!c.used_at), [coupons])
+  const usedCoupons = useMemo(() => coupons.filter((c) => !!c.used_at), [coupons])
 
   const activeOrderIds = useMemo(
     () => activeOrders.map((o) => o.id),
     [activeOrders],
   )
-  useCustomerOrderNotifications(slug, activeOrderIds)
+  useCustomerOrderNotifications(slug, activeOrderIds, (updated) => {
+    setOrders((prev) => 
+      prev.map((o) => (o.id === updated.id ? { ...o, status: updated.status } : o))
+    )
+  })
 
   useEffect(() => {
     if (!slug) return
@@ -274,7 +278,7 @@ export default function ProfileDashboardPage() {
               onClick={() => handleTabChange('orders')}
               icon={<ShoppingBag size={15} className={activeOrders.length > 0 ? 'text-amber-500' : ''} />}
               label="Orders"
-              badge={activeOrders.length > 0 ? activeOrders.length : (orders.length > 0 ? orders.length : undefined)}
+              // badge={activeOrders.length > 0 ? activeOrders.length : (activeOrders.length > 0 ? activeOrders.length : undefined)}
               badgeColor={activeOrders.length > 0 ? 'bg-amber-500 text-white animate-pulse' : 'bg-gray-200 text-gray-700 dark:bg-slate-700 dark:text-gray-300'}
             />
             <TabButton
@@ -479,11 +483,10 @@ function TabButton({
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-xs sm:text-sm font-bold whitespace-nowrap transition-all flex-1 justify-center ${
-        active
-          ? 'bg-white dark:bg-slate-900 text-brand-primary shadow-xs'
-          : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-      }`}
+      className={`flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-xs sm:text-sm font-bold whitespace-nowrap transition-all flex-1 justify-center ${active
+        ? 'bg-white dark:bg-slate-900 text-brand-primary shadow-xs'
+        : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+        }`}
     >
       {icon}
       <span>{label}</span>
@@ -541,15 +544,13 @@ function ActiveOrderCard({
             return (
               <div key={step} className="space-y-1">
                 <div
-                  className={`h-1.5 rounded-full transition-all ${
-                    isCompleted
-                      ? 'bg-brand-primary'
-                      : 'bg-gray-200 dark:bg-slate-800'
-                  } ${isCurrent ? 'animate-pulse ring-2 ring-brand-primary/30' : ''}`}
+                  className={`h-1.5 rounded-full transition-all ${isCompleted
+                    ? 'bg-brand-primary'
+                    : 'bg-gray-200 dark:bg-slate-800'
+                    } ${isCurrent ? 'animate-pulse ring-2 ring-brand-primary/30' : ''}`}
                 />
-                <p className={`text-[10px] text-center capitalize font-semibold truncate ${
-                  isCompleted ? 'text-brand-primary' : 'text-gray-400 dark:text-gray-500'
-                }`}>
+                <p className={`text-[10px] text-center capitalize font-semibold truncate ${isCompleted ? 'text-brand-primary' : 'text-gray-400 dark:text-gray-500'
+                  }`}>
                   {step === 'pending' ? 'Placed' : step === 'ready' ? 'Ready' : step}
                 </p>
               </div>

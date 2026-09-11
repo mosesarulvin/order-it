@@ -81,11 +81,19 @@ export default function ProfilePage() {
         })
       }
       toast.success(`Welcome, ${session.name}! 🎉`)
-      navigate(`/order/${slug}/profile/dashboard`)
+      const redirect = searchParams.get('redirect')
+      if (redirect === 'checkout') {
+        navigate(`/order/${slug}/checkout`)
+      } else {
+        navigate(`/order/${slug}/profile/dashboard`)
+      }
     } catch (err) {
       const message = humanizeError(err)
       toast.error(message)
-      if (message.includes('already exists')) navigate(`/order/${slug}/profile`)
+      if (message.includes('already exists')) {
+        const redirect = searchParams.get('redirect')
+        navigate(redirect ? `/order/${slug}/profile?redirect=${redirect}` : `/order/${slug}/profile`)
+      }
     } finally {
       setLoading(false)
     }
@@ -112,7 +120,10 @@ export default function ProfilePage() {
 
         <div className="max-w-md mx-auto pt-4 relative">
           <button
-            onClick={() => navigate(`/order/${slug}/profile`)}
+            onClick={() => {
+              const redirect = searchParams.get('redirect')
+              navigate(redirect ? `/order/${slug}/profile?redirect=${redirect}` : `/order/${slug}/profile`)
+            }}
             className="flex items-center gap-2 text-white/85 hover:text-white text-sm transition-colors"
           >
             <ArrowLeft size={16} /> Back
@@ -258,7 +269,10 @@ export default function ProfilePage() {
           <span>Already have a profile?</span>
           <button
             type="button"
-            onClick={() => navigate(`/order/${slug}/profile`)}
+            onClick={() => {
+              const redirect = searchParams.get('redirect')
+              navigate(redirect ? `/order/${slug}/profile?redirect=${redirect}` : `/order/${slug}/profile`)
+            }}
             className="text-brand-primary font-semibold hover:underline"
           >
             Sign in

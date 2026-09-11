@@ -34,12 +34,12 @@ const STATUS_LABELS: Record<OrderStatus, string> = {
   cancelled: 'Cancelled',
 }
 
-// Only allow forward transitions and cancellation
+// Allow full bidirectional transitions between active statuses, plus cancellation
 const VALID_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
-  pending:   ['confirmed', 'cancelled'],
-  confirmed: ['preparing', 'cancelled'],
-  preparing: ['ready', 'cancelled'],
-  ready:     ['completed', 'cancelled'],
+  pending:   ['confirmed', 'preparing', 'ready', 'cancelled'],
+  confirmed: ['pending', 'preparing', 'ready', 'cancelled'],
+  preparing: ['pending', 'confirmed', 'ready', 'cancelled'],
+  ready:     ['pending', 'confirmed', 'preparing', 'completed', 'cancelled'],
   completed: [],
   cancelled: [],
 }

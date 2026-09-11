@@ -27,9 +27,15 @@ interface OrderRow {
 export function useCustomerOrderNotifications(
   slug?: string,
   currentOrderIds?: string | string[],
+  onOrderUpdate?: (order: OrderRow) => void
 ) {
   const [permission, setPermission] = useState<NotificationPermission | 'unsupported'>('default')
   const channelRef = useRef<RealtimeChannel | null>(null)
+  
+  const onOrderUpdateRef = useRef(onOrderUpdate)
+  useEffect(() => {
+    onOrderUpdateRef.current = onOrderUpdate
+  }, [onOrderUpdate])
 
   useEffect(() => {
     if (typeof window !== 'undefined' && 'Notification' in window) {
@@ -73,15 +79,18 @@ export function useCustomerOrderNotifications(
 
     if (ids.size === 0) return
 
-    const filter = `id=in.(${Array.from(ids).join(',')})`
     const channel = supabase
-      .channel(`customer-orders-${slug}`)
+      .channel(`customer-orders-${slug}-${idsSignature}`)
       .on(
         'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'orders', filter },
+        { event: 'UPDATE', schema: 'public', table: 'orders' },
         (payload: RealtimePostgresChangesPayload<OrderRow>) => {
           const updated = payload.new as OrderRow
-          if (!updated || updated.status !== 'ready') return
+          if (!updated || !ids.has(updated.id)) return
+          
+          if (onOrderUpdateRef.current) onOrderUpdateRef.current(updated)
+          
+          if (updated.status !== 'ready') return
 
           const notifiedKey = `notified-ready-${updated.id}`
           if (sessionStorage.getItem(notifiedKey)) return

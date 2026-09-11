@@ -13,10 +13,10 @@ import type { RealtimeChannel } from '@supabase/supabase-js'
 import toast from 'react-hot-toast'
 
 const STATUS_STEPS = [
-  { key: 'pending',   label: 'Order Placed',      icon: Bell },
-  { key: 'confirmed', label: 'Confirmed',         icon: CheckCircle },
-  { key: 'preparing', label: 'Being Prepared',    icon: ChefHat },
-  { key: 'ready',     label: 'Ready for Pickup',  icon: ShoppingBag },
+  { key: 'pending', label: 'Order Placed', icon: Bell },
+  { key: 'confirmed', label: 'Confirmed', icon: CheckCircle },
+  { key: 'preparing', label: 'Being Prepared', icon: ChefHat },
+  { key: 'ready', label: 'Ready for Pickup', icon: ShoppingBag },
 ]
 
 const ORDERS_KEY = (slug: string) => `orderit-orders-${slug}`
@@ -137,7 +137,7 @@ export default function OrderSuccessPage() {
 
   const currentStepIdx = STATUS_STEPS.findIndex((s) => s.key === order?.status)
   const isCancelled = order?.status === 'cancelled'
-  const isReady     = order?.status === 'ready'
+  const isReady = order?.status === 'ready'
   const isCompleted = order?.status === 'completed'
 
   if (loading) {
@@ -225,8 +225,8 @@ export default function OrderSuccessPage() {
                   <span className="absolute inset-0 rounded-full bg-white/30 animate-ping pointer-events-none" />
                 )}
                 {isCancelled ? <XCircle size={48} className="text-white" />
-                  : isReady   ? <BellRing size={48} className="text-white animate-bounce" />
-                              : <CheckCircle size={48} className="text-white" />}
+                  : isReady ? <BellRing size={48} className="text-white animate-bounce" />
+                    : <CheckCircle size={48} className="text-white" />}
               </div>
             </div>
             <h1 className="text-2xl font-bold">
@@ -307,7 +307,7 @@ export default function OrderSuccessPage() {
         <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 overflow-hidden shadow-xs">
           <div className="px-4 py-3 border-b border-gray-50 dark:border-slate-800 flex items-center justify-between">
             <h2 className="font-semibold text-gray-900 dark:text-white text-sm">Items ordered</h2>
-            {order.payment_status === 'paid' ? (
+            {/* {order.payment_status === 'paid' ? (
               <button
                 onClick={handleDownloadInvoice}
                 className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-gray-100 dark:bg-slate-800 text-brand-primary text-xs font-bold hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors"
@@ -323,7 +323,7 @@ export default function OrderSuccessPage() {
               >
                 <FileText size={13} /> Invoice PDF
               </button>
-            )}
+            )} */}
           </div>
           <div className="divide-y divide-gray-50 dark:divide-slate-800">
             {order.items?.map((item) => (

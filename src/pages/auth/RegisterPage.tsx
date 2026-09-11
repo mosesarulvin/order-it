@@ -53,7 +53,10 @@ export default function RegisterPage() {
     if (RESERVED_SLUGS.has(cleaned)) { setSlugStatus('reserved'); return }
     setSlugStatus('checking')
     slugCheckTimer.current = setTimeout(async () => {
-      const { data } = await supabase.rpc('check_slug_available', { p_slug: cleaned })
+      const { data, error } = await supabase.rpc('check_slug_available', { p_slug: cleaned })
+      if (error) {
+        console.error('check_slug_available error:', error)
+      }
       setSlugStatus(data === true ? 'available' : 'taken')
     }, 400)
   }
@@ -130,9 +133,9 @@ export default function RegisterPage() {
                   value={slug}
                   onChange={(e) => checkSlug(e.target.value)}
                   placeholder="your-shop"
-                  className="flex-1 px-3 py-2.5 text-sm bg-transparent outline-none text-gray-900 dark:text-white placeholder:text-gray-400"
+                  className="flex-1 min-w-0 px-3 py-2.5 text-sm bg-transparent outline-none text-gray-900 dark:text-white placeholder:text-gray-400"
                 />
-                <span className="px-3"><SlugIcon /></span>
+                <span className="px-3 shrink-0"><SlugIcon /></span>
               </div>
               {slugMessage && (
                 <p className={`text-xs ${slugStatus === 'available' ? 'text-green-600 dark:text-green-400' : 'text-red-500'}`}>

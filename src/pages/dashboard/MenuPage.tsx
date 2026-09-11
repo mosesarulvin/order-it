@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Plus, Pencil, Trash2, GripVertical, ImagePlus, Tag, ChevronDown, ChevronUp, Zap, Package, X as XIcon, Settings2, Image as ImageIcon, Star } from 'lucide-react'
+import { Plus, Pencil, Trash2, GripVertical, ImagePlus, Tag, ChevronDown, ChevronUp, Zap, Package, X as XIcon, Settings2, Image as ImageIcon, Star, Download, Eye } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -15,6 +15,35 @@ import { Badge } from '@/components/ui/Badge'
 import { Skeleton } from '@/components/ui/Skeleton'
 import type { CustomizationGroup, MenuCategory, MenuItem, MenuItemVariant } from '@/types'
 import toast from 'react-hot-toast'
+
+const convertToWebP = (file: File): Promise<File> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      const img = new Image()
+      img.onload = () => {
+        const canvas = document.createElement('canvas')
+        canvas.width = img.width
+        canvas.height = img.height
+        const ctx = canvas.getContext('2d')
+        if (!ctx) { reject(new Error('Failed to get canvas context')); return }
+        ctx.drawImage(img, 0, 0)
+        canvas.toBlob((blob) => {
+          if (!blob) { reject(new Error('Failed to convert image')); return }
+          const newFile = new File([blob], file.name.replace(/\.[^/.]+$/, "") + ".webp", {
+            type: 'image/webp',
+            lastModified: Date.now()
+          })
+          resolve(newFile)
+        }, 'image/webp', 0.8) // 0.8 quality
+      }
+      img.onerror = () => reject(new Error('Failed to load image'))
+      img.src = e.target?.result as string
+    }
+    reader.onerror = () => reject(new Error('Failed to read file'))
+    reader.readAsDataURL(file)
+  })
+}
 
 const categorySchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -52,6 +81,7 @@ export default function MenuPage() {
   const [catModal, setCatModal] = useState<{ open: boolean; editing?: MenuCategory }>({ open: false })
   const [itemModal, setItemModal] = useState<{ open: boolean; editing?: MenuItem; categoryId?: string }>({ open: false })
   const [uploadingImage, setUploadingImage] = useState(false)
+  const [previewImageModal, setPreviewImageModal] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   // customization groups state (managed separately from react-hook-form)
   const [customGroups, setCustomGroups] = useState<CustomizationGroup[]>([])
@@ -174,13 +204,19 @@ export default function MenuPage() {
   const uploadImage = async (file: File): Promise<string | null> => {
     if (!shop) return null
     setUploadingImage(true)
-    const ext = file.name.split('.').pop()
-    const path = `${shop.id}/${Date.now()}.${ext}`
-    const { error } = await supabase.storage.from('menu-images').upload(path, file, { upsert: true })
-    setUploadingImage(false)
-    if (error) { toast.error(`Image upload failed: ${error.message}`); return null }
-    const { data } = supabase.storage.from('menu-images').getPublicUrl(path)
-    return data.publicUrl
+    try {
+      const webpFile = await convertToWebP(file)
+      const path = `${shop.id}/${Date.now()}.webp`
+      const { error } = await supabase.storage.from('menu-images').upload(path, webpFile, { upsert: true })
+      if (error) throw error
+      const { data } = supabase.storage.from('menu-images').getPublicUrl(path)
+      return data.publicUrl
+    } catch (e: any) {
+      toast.error(`Image upload failed: ${e.message}`)
+      return null
+    } finally {
+      setUploadingImage(false)
+    }
   }
 
   const saveItem = async (data: ItemForm) => {
@@ -432,11 +468,65 @@ export default function MenuPage() {
               onClick={() => fileRef.current?.click()}
             >
               {(imagePreview || itemModal.editing?.image_url) ? (
-                <img
-                  src={imagePreview || itemModal.editing?.image_url || ''}
-                  alt="preview"
-                  className="w-full h-full object-contain p-2"
-                />
+                <div className="relative w-full h-full group/img">
+                  <img
+                    src={imagePreview || itemModal.editing?.image_url || ''}
+                    alt="preview"
+                    className="w-full h-full object-contain p-2"
+                  />
+                  <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover/img:opacity-100 transition-opacity">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        const currentImage = imagePreview || itemModal.editing?.image_url
+                        if (currentImage) {
+                          setPreviewImageModal(currentImage)
+                        }
+                      }}
+                      className="p-1.5 bg-white/90 dark:bg-slate-800/90 hover:bg-white dark:hover:bg-slate-700 text-gray-700 dark:text-gray-200 rounded-lg shadow-sm backdrop-blur-sm transition-colors"
+                      title="Preview Image"
+                    >
+                      <Eye size={16} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        const currentImage = imagePreview || itemModal.editing?.image_url
+                        if (currentImage) {
+                          const a = document.createElement('a')
+                          a.href = currentImage
+                          a.download = itemForm.getValues('name') || 'menu-item-image'
+                          a.target = '_blank'
+                          a.click()
+                        }
+                      }}
+                      className="p-1.5 bg-white/90 dark:bg-slate-800/90 hover:bg-white dark:hover:bg-slate-700 text-gray-700 dark:text-gray-200 rounded-lg shadow-sm backdrop-blur-sm transition-colors"
+                      title="Download Image"
+                    >
+                      <Download size={16} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setPendingImageFile(null)
+                        setImagePreview(null)
+                        if (itemModal.editing) {
+                          setItemModal(prev => ({
+                            ...prev,
+                            editing: prev.editing ? { ...prev.editing, image_url: null } : undefined
+                          }))
+                        }
+                      }}
+                      className="p-1.5 bg-white/90 dark:bg-slate-800/90 hover:bg-red-50 dark:hover:bg-red-900/50 text-red-600 dark:text-red-400 rounded-lg shadow-sm backdrop-blur-sm transition-colors"
+                      title="Remove Image"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </div>
               ) : (
                 <div className="h-full flex flex-col items-center justify-center gap-2 text-gray-400 group-hover:text-orange-400 transition-colors">
                   <ImagePlus size={24} />
@@ -720,6 +810,20 @@ export default function MenuPage() {
             </Button>
           </div>
         </form>
+      </Modal>
+
+      {/* Full Image Preview Modal */}
+      <Modal
+        open={!!previewImageModal}
+        onClose={() => setPreviewImageModal(null)}
+        title="Image Preview"
+        size="md"
+      >
+        {previewImageModal && (
+          <div className="flex items-center justify-center bg-gray-50 dark:bg-slate-900 rounded-xl overflow-hidden min-h-[300px]">
+            <img src={previewImageModal} alt="Preview" className="max-w-full max-h-[70vh] object-contain" />
+          </div>
+        )}
       </Modal>
     </div>
   )

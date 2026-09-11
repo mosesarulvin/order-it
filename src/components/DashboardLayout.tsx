@@ -28,6 +28,7 @@ import { ThemeToggle } from '@/components/ThemeToggle'
 import { supabase } from '@/lib/supabase'
 import { getInitials } from '@/lib/utils'
 import toast from 'react-hot-toast'
+import { playKitchenAlertSound } from '@/lib/sound'
 
 const getNavItems = (role: string | null, isSuperAdmin: boolean) => {
   const allItems = [
@@ -70,17 +71,65 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const navItems = getNavItems(userRole, isSuperAdmin)
 
-  // Global notification listener for new orders
+  const [pendingOrderIds, setPendingOrderIds] = useState<Set<string>>(new Set())
+
+  // Global notification listener and pending orders tracker
   useEffect(() => {
     if (!shop) return
+    
+    // Initial fetch of pending orders
+    supabase
+      .from('orders')
+      .select('id')
+      .eq('shop_id', shop.id)
+      .eq('status', 'pending')
+      .then(({ data }) => {
+        if (data) {
+          setPendingOrderIds(new Set(data.map(d => d.id)))
+        }
+      })
+
     const channel = supabase
       .channel(`global-notifications-${shop.id}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders', filter: `shop_id=eq.${shop.id}` }, (payload) => {
-        playNotification()
-        toast('🛎️ New order received!', { icon: '🔔', style: { fontWeight: '600' } })
-        
-        const order = payload.new as any
-        setNotifications(prev => [{ id: order.id, text: 'New order received', orderNumber: order.order_number }, ...prev].slice(0, 50))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `shop_id=eq.${shop.id}` }, (payload) => {
+        if (payload.eventType === 'INSERT') {
+          const newOrder = payload.new as any
+          if (newOrder.status === 'pending') {
+            setPendingOrderIds(prev => new Set(prev).add(newOrder.id))
+          }
+          
+          playNotification()
+          toast('🛎️ New order received!', { icon: '🔔', style: { fontWeight: '600' } })
+          
+          setNotifications(prev => [{ id: newOrder.id, text: 'New order received', orderNumber: newOrder.order_number }, ...prev].slice(0, 50))
+        } else if (payload.eventType === 'UPDATE') {
+          const newOrder = payload.new as any
+          if (newOrder.status === 'pending') {
+            setPendingOrderIds(prev => {
+              if (prev.has(newOrder.id)) return prev
+              const next = new Set(prev)
+              next.add(newOrder.id)
+              return next
+            })
+          } else {
+            setPendingOrderIds(prev => {
+              if (!prev.has(newOrder.id)) return prev
+              const next = new Set(prev)
+              next.delete(newOrder.id)
+              return next
+            })
+          }
+        } else if (payload.eventType === 'DELETE') {
+          const oldOrder = payload.old as any
+          if (oldOrder.id) {
+            setPendingOrderIds(prev => {
+              if (!prev.has(oldOrder.id)) return prev
+              const next = new Set(prev)
+              next.delete(oldOrder.id)
+              return next
+            })
+          }
+        }
       })
       .subscribe()
 
@@ -88,6 +137,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       channel.unsubscribe()
     }
   }, [shop])
+
+  // Continuous ring for pending orders globally
+  useEffect(() => {
+    if (pendingOrderIds.size === 0) return
+    
+    const interval = setInterval(() => {
+      playKitchenAlertSound()
+    }, 4000)
+    
+    return () => clearInterval(interval)
+  }, [pendingOrderIds.size])
 
   const playNotification = () => {
     try {
@@ -293,9 +353,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <button 
                 onClick={() => { setNotifOpen(!notifOpen); setProfileOpen(false) }}
                 className="relative p-2 rounded-xl text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-800 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                style={{ animation: pendingOrderIds.size > 0 ? 'wiggle 0.3s ease-in-out infinite' : 'none' }}
               >
-                <Bell size={18} />
-                {notifications.length > 0 && (
+                <Bell size={18} className={pendingOrderIds.size > 0 ? "text-orange-500" : ""} />
+                {pendingOrderIds.size > 0 && (
                   <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 border border-white dark:border-slate-900 rounded-full"></span>
                 )}
               </button>

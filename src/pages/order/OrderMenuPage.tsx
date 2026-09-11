@@ -1083,7 +1083,14 @@ export default function OrderMenuPage() {
         >
           <div className="max-w-lg mx-auto">
             <button
-              onClick={() => navigate(`/order/${slug}/checkout`)}
+              onClick={() => {
+                const token = slug ? getSessionToken(slug) : null
+                if (!token) {
+                  navigate(`/order/${slug}/profile?redirect=checkout`)
+                } else {
+                  navigate(`/order/${slug}/checkout`)
+                }
+              }}
               className="w-full bg-brand-primary text-white rounded-2xl p-4 flex items-center justify-between shadow-xl shadow-brand-primary ring-1 ring-white/20 dark:ring-white/10 hover:opacity-90 active:scale-[0.98] transition-all"
             >
               <div className="flex items-center gap-3">

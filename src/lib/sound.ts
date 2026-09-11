@@ -141,3 +141,42 @@ export function notifyCustomerOrderReady(orderNumber: string) {
     `Your order #${orderNumber} is ready for pickup! Please collect it at the counter.`
   )
 }
+
+/**
+ * Plays a short attention-grabbing chime for the Kitchen Dashboard.
+ * Used for continuous ringing while there are pending orders.
+ */
+export async function playKitchenAlertSound(): Promise<boolean> {
+  try {
+    const ctx = getAudioContext()
+    if (!ctx) return false
+
+    if (ctx.state === 'suspended') {
+      try {
+        await ctx.resume()
+      } catch {
+        return false
+      }
+    }
+    if (ctx.state === 'suspended') return false
+
+    const now = ctx.currentTime
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
+    osc.connect(gain)
+    gain.connect(ctx.destination)
+    
+    // Urgent double beep
+    osc.frequency.setValueAtTime(880, now)
+    osc.frequency.setValueAtTime(1100, now + 0.1)
+    
+    gain.gain.setValueAtTime(0.3, now)
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4)
+    
+    osc.start(now)
+    osc.stop(now + 0.4)
+    return true
+  } catch (err) {
+    return false
+  }
+}

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft, Phone, User, Gift, ChevronRight, Lock, Eye, EyeOff,
   UtensilsCrossed, ClipboardList, BellRing, Sparkles,
@@ -22,6 +22,8 @@ interface ShopSummary {
 export default function ProfileLandingPage() {
   const { slug } = useParams<{ slug: string }>()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const redirect = searchParams.get('redirect')
 
   const [tab, setTab] = useState<Tab>('signin')
   const [shop, setShop] = useState<ShopSummary | null>(null)
@@ -34,7 +36,11 @@ export default function ProfileLandingPage() {
     if (!slug) return
     const token = getSessionToken(slug)
     if (token) {
-      navigate(`/order/${slug}/profile/dashboard`, { replace: true })
+      if (redirect === 'checkout') {
+        navigate(`/order/${slug}/checkout`, { replace: true })
+      } else {
+        navigate(`/order/${slug}/profile/dashboard`, { replace: true })
+      }
       return
     }
 
@@ -44,7 +50,7 @@ export default function ProfileLandingPage() {
         if (!cancelled && data) setShop(data as ShopSummary)
       })
     return () => { cancelled = true }
-  }, [slug, navigate])
+  }, [slug, navigate, redirect])
 
   const handleSignIn = async () => {
     const parsed = customerSignInSchema.safeParse({ phone, password })
@@ -65,7 +71,11 @@ export default function ProfileLandingPage() {
         })
       }
       toast.success(`Welcome back, ${session.name}! 👋`)
-      navigate(`/order/${slug}/profile/dashboard`)
+      if (redirect === 'checkout') {
+        navigate(`/order/${slug}/checkout`)
+      } else {
+        navigate(`/order/${slug}/profile/dashboard`)
+      }
     } catch (err) {
       toast.error(humanizeError(err))
     } finally {
@@ -223,7 +233,7 @@ export default function ProfileLandingPage() {
             </ul>
 
             <Button
-              onClick={() => navigate(`/order/${slug}/profile/new`)}
+              onClick={() => navigate(redirect ? `/order/${slug}/profile/new?redirect=${redirect}` : `/order/${slug}/profile/new`)}
               size="lg"
               className="w-full h-12 mt-6 shadow-lg shadow-brand-primary/30"
             >
