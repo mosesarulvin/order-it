@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import QRCode from 'qrcode'
 import { Download, Copy, ExternalLink, QrCode } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
@@ -13,12 +13,7 @@ export default function QRCodePage() {
 
   const orderUrl = shop ? `${window.location.origin}/order/${shop.slug}` : ''
 
-  useEffect(() => {
-    if (!orderUrl) return
-    generateQR()
-  }, [orderUrl])
-
-  const generateQR = async () => {
+  const generateQR = useCallback(async () => {
     if (!canvasRef.current || !orderUrl) return
     await QRCode.toCanvas(canvasRef.current, orderUrl, {
       width: 300,
@@ -28,7 +23,12 @@ export default function QRCodePage() {
     })
     const url = canvasRef.current.toDataURL('image/png')
     setQrDataUrl(url)
-  }
+  }, [orderUrl])
+
+  useEffect(() => {
+    if (!orderUrl) return
+    generateQR()
+  }, [orderUrl, generateQR])
 
   const downloadQR = () => {
     if (!qrDataUrl) return

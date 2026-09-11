@@ -29,10 +29,12 @@ export default function StockPage() {
 
   useEffect(() => {
     if (shop) fetchItems()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shop])
 
   useEffect(() => {
     if (shop && tab === 'log') fetchLogs()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shop, tab, logPage])
 
   const fetchItems = async () => {

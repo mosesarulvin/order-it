@@ -161,8 +161,6 @@ newFile = newFile.replace(/const statCards = \[[\s\S]*?\]/, statCardsReplacement
 
 newFile = newFile.replace('grid-cols-2 lg:grid-cols-4', 'grid-cols-2 md:grid-cols-3');
 
-const COLORS = ['#f97316', '#3b82f6', '#10b981', '#8b5cf6', '#ec4899'];
-
 const chartsSection = `
       {/* Business Insights (Charts) */}
       {!loading && chartData && (

@@ -43,7 +43,7 @@ export default function RegisterPage() {
     if (!shopName) return
     const suggested = slugify(shopName)
     if (suggested && slug === '') setSlug(suggested)
-  }, [shopName])
+  }, [shopName, slug])
 
   const checkSlug = (value: string) => {
     if (slugCheckTimer.current) clearTimeout(slugCheckTimer.current)

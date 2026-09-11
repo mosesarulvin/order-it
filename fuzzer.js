@@ -61,7 +61,6 @@ const UNICODE_BOMB       = '🔥'.repeat(500)
 const NEGATIVE_NUM       = -999
 const ZERO               = 0
 const HUGE_NUM           = Number.MAX_SAFE_INTEGER
-const FLOAT_PRICE        = 99.999999999
 const BOGUS_UUID         = '00000000-0000-0000-0000-000000000000'
 const MALFORMED_UUID     = 'not-a-uuid'
 const EXPIRED_DATE       = '1900-01-01T00:00:00Z'

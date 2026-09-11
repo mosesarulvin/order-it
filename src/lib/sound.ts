@@ -176,7 +176,7 @@ export async function playKitchenAlertSound(): Promise<boolean> {
     osc.start(now)
     osc.stop(now + 0.4)
     return true
-  } catch (err) {
+  } catch {
     return false
   }
 }

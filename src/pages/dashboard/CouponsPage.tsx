@@ -43,6 +43,7 @@ export default function CouponsPage() {
 
   useEffect(() => {
     if (shop) fetchCoupons()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shop])
 
   const fetchCoupons = async () => {

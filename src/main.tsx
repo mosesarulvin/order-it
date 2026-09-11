@@ -22,6 +22,7 @@ const queryClient = new QueryClient({
   },
 })
 
+// eslint-disable-next-line react-refresh/only-export-components
 function AppFallback() {
   return (
     <div className="min-h-screen flex items-center justify-center p-8 text-center bg-gray-50 dark:bg-slate-950">

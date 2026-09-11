@@ -42,6 +42,7 @@ export default function CustomersPage() {
     if (!shop) return
     fetchProfiles()
     fetchShopCoupons()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shop])
 
   const fetchProfiles = async () => {

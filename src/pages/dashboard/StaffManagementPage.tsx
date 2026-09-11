@@ -15,6 +15,7 @@ export default function StaffManagementPage() {
 
   useEffect(() => {
     if (shop) fetchStaff()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shop])
 
   const fetchStaff = async () => {

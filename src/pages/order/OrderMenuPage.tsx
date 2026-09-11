@@ -136,6 +136,7 @@ export default function OrderMenuPage() {
 
   useEffect(() => {
     if (slug) fetchShopData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug])
 
   // Clear cart automatically when customer scans a different shop's QR
@@ -143,6 +144,7 @@ export default function OrderMenuPage() {
     if (slug && shopSlug && shopSlug !== slug) {
       clearCart()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug, shopSlug])
 
   const fetchShopData = async () => {

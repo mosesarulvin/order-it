@@ -93,6 +93,7 @@ export default function MenuPage() {
 
   useEffect(() => {
     if (shop) fetchMenu()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shop])
 
   const fetchMenu = async () => {
