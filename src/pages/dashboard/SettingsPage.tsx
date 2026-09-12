@@ -10,6 +10,7 @@ import { Input, Textarea } from '@/components/ui/Input'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Toggle } from '@/components/ui/Toggle'
 import toast from 'react-hot-toast'
+import { convertToWebP } from '@/lib/utils'
 
 const schema = z.object({
   name: z.string().min(2, 'Shop name is required'),
@@ -117,14 +118,15 @@ export default function SettingsPage() {
     }
 
     setLogoUploading(true)
-    const fileExt = file.name.split('.').pop()
-    const fileName = `${shop.id}-${Math.random()}.${fileExt}`
+    const fileName = `${shop.id}-${Math.random()}.webp`
     const filePath = `logos/${fileName}`
 
     try {
+      const webpFile = await convertToWebP(file)
+      
       const { error: uploadError } = await supabase.storage
         .from('shop-assets')
-        .upload(filePath, file)
+        .upload(filePath, webpFile, { upsert: true })
 
       if (uploadError) throw uploadError
 
@@ -159,14 +161,15 @@ export default function SettingsPage() {
     }
 
     setCoverUploading(true)
-    const fileExt = file.name.split('.').pop()
-    const fileName = `${shop.id}-cover-${Math.random()}.${fileExt}`
+    const fileName = `${shop.id}-cover-${Math.random()}.webp`
     const filePath = `covers/${fileName}`
 
     try {
+      const webpFile = await convertToWebP(file)
+      
       const { error: uploadError } = await supabase.storage
         .from('shop-assets')
-        .upload(filePath, file)
+        .upload(filePath, webpFile, { upsert: true })
 
       if (uploadError) throw uploadError
 
