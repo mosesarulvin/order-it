@@ -34,6 +34,7 @@ export default function OrdersPage() {
   const [hasMore, setHasMore] = useState(true)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<OrderStatus | 'all'>('all')
+  const [statusDropdownOpen, setStatusDropdownOpen] = useState(false)
   const [selected, setSelected] = useState<Order | null>(null)
   const [cancelTarget, setCancelTarget] = useState<Order | null>(null)
   const channelRef = useRef<RealtimeChannel | null>(null)
@@ -212,18 +213,37 @@ export default function OrdersPage() {
           />
         </div>
         <div className="relative">
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as OrderStatus | 'all')}
-            className="h-10 pl-9 pr-8 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-gray-700 dark:text-gray-200 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100 dark:focus:ring-orange-900/50 appearance-none cursor-pointer"
+          <button
+            onClick={() => setStatusDropdownOpen(!statusDropdownOpen)}
+            className="flex items-center gap-2 h-10 pl-9 pr-4 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-gray-700 dark:text-gray-200 hover:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-100 dark:focus:ring-orange-900/50"
           >
-            <option value="all">All statuses</option>
-            {STATUS_OPTIONS.map((s) => (
-              <option key={s} value={s}>{getOrderStatusLabel(s)}</option>
-            ))}
-          </select>
-          <Filter size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-          <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+            <Filter size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+            <span>{statusFilter === 'all' ? 'All statuses' : getOrderStatusLabel(statusFilter)}</span>
+            <ChevronDown size={14} className="text-gray-400 ml-1" />
+          </button>
+          
+          {statusDropdownOpen && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setStatusDropdownOpen(false)} />
+              <div className="absolute top-full right-0 mt-2 w-48 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-gray-100 dark:border-slate-700 overflow-hidden z-50 py-1">
+                <button
+                  onClick={() => { setStatusFilter('all'); setStatusDropdownOpen(false) }}
+                  className={`w-full text-left px-4 py-2 text-sm transition-colors ${statusFilter === 'all' ? 'bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 font-medium' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-slate-700'}`}
+                >
+                  All statuses
+                </button>
+                {STATUS_OPTIONS.map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => { setStatusFilter(s); setStatusDropdownOpen(false) }}
+                    className={`w-full text-left px-4 py-2 text-sm transition-colors ${statusFilter === s ? 'bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 font-medium' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-slate-700'}`}
+                  >
+                    {getOrderStatusLabel(s)}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       </div>
 

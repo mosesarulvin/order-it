@@ -12,6 +12,7 @@ export default function StaffManagementPage() {
   const [loading, setLoading] = useState(true)
   const [generatedLink, setGeneratedLink] = useState('')
   const [role, setRole] = useState<'manager' | 'staff'>('staff')
+  const [roleDropdownOpen, setRoleDropdownOpen] = useState(false)
 
   useEffect(() => {
     if (shop) fetchStaff()
@@ -73,17 +74,35 @@ export default function StaffManagementPage() {
             <div className="flex-1 relative">
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">Role to grant</label>
               <div className="relative">
-                <select 
-                  value={role} 
-                  onChange={(e) => setRole(e.target.value as any)}
-                  className="w-full h-11 pl-3 pr-10 rounded-xl border-gray-200 dark:border-slate-700 border bg-white dark:bg-slate-900 text-gray-900 dark:text-white appearance-none focus:outline-none focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary"
+                <button
+                  type="button"
+                  onClick={() => setRoleDropdownOpen(!roleDropdownOpen)}
+                  className="flex items-center justify-between w-full h-11 pl-4 pr-3 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-gray-900 dark:text-white hover:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-100 dark:focus:ring-orange-900/50 transition-all"
                 >
-                  <option value="staff">Staff (Kitchen/Walk-in)</option>
-                  <option value="manager">Manager (Inventory/Orders)</option>
-                </select>
-                <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-gray-400 dark:text-gray-500">
-                  <ChevronDown size={16} />
-                </div>
+                  <span>{role === 'staff' ? 'Staff (Kitchen/Walk-in)' : 'Manager (Inventory/Orders)'}</span>
+                  <ChevronDown size={16} className="text-gray-400" />
+                </button>
+
+                {roleDropdownOpen && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setRoleDropdownOpen(false)} />
+                    <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-gray-100 dark:border-slate-700 overflow-hidden z-50 py-1">
+                      {[
+                        { value: 'staff', label: 'Staff (Kitchen/Walk-in)' },
+                        { value: 'manager', label: 'Manager (Inventory/Orders)' }
+                      ].map((opt) => (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => { setRole(opt.value as any); setRoleDropdownOpen(false) }}
+                          className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${role === opt.value ? 'bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 font-medium' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-slate-700'}`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
               </div>
             </div>
             <Button type="submit" className="h-11">

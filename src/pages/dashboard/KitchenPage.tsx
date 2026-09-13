@@ -5,7 +5,7 @@ import { formatCurrency } from '@/lib/utils'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { OrderCardSkeleton } from '@/components/ui/Skeleton'
-import { Bell, CheckCircle, Clock, ChefHat, RefreshCw, ArrowUpDown, Search, ChevronRight, ChevronLeft } from 'lucide-react'
+import { Bell, CheckCircle, Clock, ChefHat, RefreshCw, ArrowUpDown, Search, ChevronRight, ChevronLeft, ChevronDown } from 'lucide-react'
 import { CancelOrderModal } from '@/components/CancelOrderModal'
 import { useDebouncedCallback } from '@/hooks/useDebouncedCallback'
 import { captureException } from '@/lib/observability'
@@ -50,6 +50,7 @@ export default function KitchenPage() {
   const [loading, setLoading] = useState(true)
   const [filterStatus, setFilterStatus] = useState<OrderStatus | 'all'>('all')
   const [sortBy, setSortBy] = useState<'oldest' | 'newest' | 'payment'>('oldest')
+  const [sortDropdownOpen, setSortDropdownOpen] = useState(false)
   const [filterPayment, setFilterPayment] = useState<'all' | 'cash' | 'upi'>('all')
   const [search, setSearch] = useState('')
   const [cancelTarget, setCancelTarget] = useState<Order | null>(null)
@@ -272,17 +273,38 @@ export default function KitchenPage() {
         </div>
 
         {/* Sort */}
-        <div className="flex items-center gap-1 ml-auto">
-          <ArrowUpDown size={13} className="text-gray-400" />
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
-            className="text-xs font-medium text-gray-600 dark:text-gray-300 bg-transparent border-none outline-none cursor-pointer dark:bg-slate-900"
+        <div className="relative flex items-center ml-auto">
+          <button
+            onClick={() => setSortDropdownOpen(!sortDropdownOpen)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors"
           >
-            <option value="oldest">Oldest first</option>
-            <option value="newest">Newest first</option>
-            <option value="payment">Unpaid first</option>
-          </select>
+            <ArrowUpDown size={13} className="text-gray-400" />
+            <span>
+              {sortBy === 'oldest' ? 'Oldest first' : sortBy === 'newest' ? 'Newest first' : 'Unpaid first'}
+            </span>
+            <ChevronDown size={13} className="text-gray-400" />
+          </button>
+          
+          {sortDropdownOpen && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setSortDropdownOpen(false)} />
+              <div className="absolute top-full right-0 mt-1 w-36 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-gray-100 dark:border-slate-700 overflow-hidden z-50 py-1">
+                {[
+                  { value: 'oldest', label: 'Oldest first' },
+                  { value: 'newest', label: 'Newest first' },
+                  { value: 'payment', label: 'Unpaid first' }
+                ].map((opt) => (
+                  <button
+                    key={opt.value}
+                    onClick={() => { setSortBy(opt.value as typeof sortBy); setSortDropdownOpen(false) }}
+                    className={`w-full text-left px-4 py-2 text-xs transition-colors ${sortBy === opt.value ? 'bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 font-medium' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-slate-700'}`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       </div>
 
