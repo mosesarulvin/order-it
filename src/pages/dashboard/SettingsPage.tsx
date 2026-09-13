@@ -2,13 +2,14 @@ import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Store, Phone, DollarSign, Globe, Clock, Tag, Star, Zap, Palette, Image as ImageIcon, Upload, Trash2, CheckCircle2, Wallet, Banknote, ShoppingBag } from 'lucide-react'
+import { Store, Phone, DollarSign, Globe, Clock, Tag, Star, Zap, Palette, Image as ImageIcon, Upload, Trash2, CheckCircle2, Wallet, Banknote, ShoppingBag, Eye, Download } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/Button'
 import { Input, Textarea } from '@/components/ui/Input'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Toggle } from '@/components/ui/Toggle'
+import { Modal } from '@/components/ui/Modal'
 import toast from 'react-hot-toast'
 import { convertToWebP } from '@/lib/utils'
 
@@ -73,10 +74,26 @@ export default function SettingsPage() {
   const [logoPreview, setLogoPreview] = useState<string | null>(shop?.logo_url || null)
   const [coverUploading, setCoverUploading] = useState(false)
   const [coverPreview, setCoverPreview] = useState<string | null>(shop?.cover_image_url || null)
+  const [previewImageModal, setPreviewImageModal] = useState<string | null>(null)
 
   const brandPrimary = watch('brand_primary') || '#f97316'
   const brandSecondary = watch('brand_secondary') || '#f59e0b'
   const brandAccent = watch('brand_accent') || '#ea580c'
+
+  const downloadImage = async (url: string, filename: string) => {
+    try {
+      const res = await fetch(url)
+      const blob = await res.blob()
+      const blobUrl = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = blobUrl
+      a.download = filename
+      a.click()
+      URL.revokeObjectURL(blobUrl)
+    } catch {
+      toast.error('Download failed')
+    }
+  }
 
   // Reset form when shop data loads (handles race condition on first login)
   useEffect(() => {
@@ -316,9 +333,25 @@ export default function SettingsPage() {
                       />
                     </label>
                     {logoPreview && (
-                      <Button type="button" variant="ghost" size="sm" onClick={removeLogo} className="text-red-500 hover:text-red-600 hover:bg-red-50">
-                        <Trash2 size={14} /> Remove
-                      </Button>
+                      <>
+                        <Button
+                          type="button" variant="ghost" size="sm"
+                          onClick={() => setPreviewImageModal(logoPreview)}
+                          className="text-blue-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                        >
+                          <Eye size={14} /> Preview
+                        </Button>
+                        <Button
+                          type="button" variant="ghost" size="sm"
+                          onClick={() => downloadImage(logoPreview, 'shop-logo')}
+                          className="text-gray-500 hover:text-gray-700 hover:bg-gray-100 dark:hover:bg-slate-700"
+                        >
+                          <Download size={14} /> Download
+                        </Button>
+                        <Button type="button" variant="ghost" size="sm" onClick={removeLogo} className="text-red-500 hover:text-red-600 hover:bg-red-50">
+                          <Trash2 size={14} /> Remove
+                        </Button>
+                      </>
                     )}
                   </div>
                 </div>
@@ -362,9 +395,25 @@ export default function SettingsPage() {
                     />
                   </label>
                   {coverPreview && (
-                    <Button type="button" variant="ghost" size="sm" onClick={removeCover} className="text-red-500 hover:text-red-600 hover:bg-red-50">
-                      <Trash2 size={14} /> Remove Cover
-                    </Button>
+                    <>
+                      <Button
+                        type="button" variant="ghost" size="sm"
+                        onClick={() => setPreviewImageModal(coverPreview)}
+                        className="text-blue-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                      >
+                        <Eye size={14} /> Preview
+                      </Button>
+                      <Button
+                        type="button" variant="ghost" size="sm"
+                        onClick={() => downloadImage(coverPreview, 'menu-cover')}
+                        className="text-gray-500 hover:text-gray-700 hover:bg-gray-100 dark:hover:bg-slate-700"
+                      >
+                        <Download size={14} /> Download
+                      </Button>
+                      <Button type="button" variant="ghost" size="sm" onClick={removeCover} className="text-red-500 hover:text-red-600 hover:bg-red-50">
+                        <Trash2 size={14} /> Remove Cover
+                      </Button>
+                    </>
                   )}
                 </div>
               </div>
@@ -629,6 +678,19 @@ export default function SettingsPage() {
           Save settings
         </Button>
       </form>
+
+      <Modal
+        open={!!previewImageModal}
+        onClose={() => setPreviewImageModal(null)}
+        title="Image Preview"
+        size="lg"
+      >
+        {previewImageModal && (
+          <div className="flex justify-center p-4 bg-gray-50 dark:bg-slate-900/50 rounded-xl">
+            <img src={previewImageModal} alt="Preview" className="max-w-full max-h-[70vh] object-contain rounded-lg" />
+          </div>
+        )}
+      </Modal>
     </div>
   )
 }

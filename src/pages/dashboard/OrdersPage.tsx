@@ -301,57 +301,57 @@ export default function OrdersPage() {
         {selected && (
           <div className="space-y-5">
             {/* Customer info */}
-            <div className="bg-gray-50 rounded-xl p-4 space-y-2">
-              <p className="text-sm font-medium text-gray-700">Customer</p>
-              <p className="font-semibold text-gray-900">{selected.customer_name}</p>
+            <div className="bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-700/50 rounded-xl p-4 space-y-2">
+              <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Customer</p>
+              <p className="font-semibold text-gray-900 dark:text-white">{selected.customer_name}</p>
               {selected.is_anonymous
-                ? <p className="text-sm text-blue-500">🔒 Anonymous</p>
-                : <p className="text-sm text-gray-500">{selected.customer_phone}</p>
+                ? <p className="text-sm text-blue-500 dark:text-blue-400">🔒 Anonymous</p>
+                : <p className="text-sm text-gray-500 dark:text-gray-400">{selected.customer_phone}</p>
               }
-              <p className="text-xs text-gray-400">{formatDate(selected.created_at)}</p>
+              <p className="text-xs text-gray-400 dark:text-gray-500">{formatDate(selected.created_at)}</p>
             </div>
 
             {/* Items */}
             <div>
-              <p className="text-sm font-medium text-gray-700 mb-3">Items ordered</p>
+              <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Items ordered</p>
               <div className="space-y-2">
                 {selected.items?.map((item) => (
                   <div key={item.id} className="text-sm">
                     <div className="flex justify-between items-center">
-                      <span className="text-gray-700">{item.name} <span className="text-gray-400">× {item.quantity}</span></span>
-                      <span className="font-medium text-gray-900">{formatCurrency(item.subtotal)}</span>
+                      <span className="text-gray-700 dark:text-gray-300">{item.name} <span className="text-gray-400 dark:text-gray-500">× {item.quantity}</span></span>
+                      <span className="font-medium text-gray-900 dark:text-white">{formatCurrency(item.subtotal)}</span>
                     </div>
                     {item.customizations && item.customizations.length > 0 && (
                       <div className="flex flex-wrap gap-1 mt-0.5">
                         {item.customizations.map((c, ci) => (
-                          <span key={ci} className="text-xs bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded-full">{c.choice}</span>
+                          <span key={ci} className="text-xs bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 px-1.5 py-0.5 rounded-full">{c.choice}</span>
                         ))}
                       </div>
                     )}
                   </div>
                 ))}
               </div>
-              <div className="border-t border-gray-100 mt-3 pt-3 space-y-1">
-                <div className="flex justify-between text-sm text-gray-500">
+              <div className="border-t border-gray-100 dark:border-slate-700 mt-3 pt-3 space-y-1">
+                <div className="flex justify-between text-sm text-gray-500 dark:text-gray-400">
                   <span>Subtotal</span><span>{formatCurrency(selected.subtotal)}</span>
                 </div>
                 {selected.packing_charge > 0 && (
-                  <div className="flex justify-between text-sm text-gray-500">
+                  <div className="flex justify-between text-sm text-gray-500 dark:text-gray-400">
                     <span>Packing Charge</span><span>{formatCurrency(selected.packing_charge)}</span>
                   </div>
                 )}
                 {selected.tax_amount > 0 && (
-                  <div className="flex justify-between text-sm text-gray-500">
+                  <div className="flex justify-between text-sm text-gray-500 dark:text-gray-400">
                     <span>Tax</span><span>{formatCurrency(selected.tax_amount)}</span>
                   </div>
                 )}
                 {selected.discount_amount > 0 && (
-                  <div className="flex justify-between text-sm text-green-600">
+                  <div className="flex justify-between text-sm text-green-600 dark:text-green-400">
                     <span>Discount{selected.coupon_code ? ` (${selected.coupon_code})` : ''}</span>
                     <span>-{formatCurrency(selected.discount_amount)}</span>
                   </div>
                 )}
-                <div className="flex justify-between font-bold text-gray-900">
+                <div className="flex justify-between font-bold text-gray-900 dark:text-white">
                   <span>Total</span><span>{formatCurrency(selected.total)}</span>
                 </div>
               </div>
@@ -359,13 +359,13 @@ export default function OrdersPage() {
 
             {/* Payment */}
             <div className="flex gap-3">
-              <div className="flex-1 bg-gray-50 rounded-xl p-3 text-center">
-                <p className="text-xs text-gray-500">Payment</p>
-                <p className="font-semibold text-gray-900 capitalize">{selected.payment_method === 'cash' ? '💵 Cash' : '📱 UPI'}</p>
+              <div className="flex-1 bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-700/50 rounded-xl p-3 text-center">
+                <p className="text-xs text-gray-500 dark:text-gray-400">Payment</p>
+                <p className="font-semibold text-gray-900 dark:text-white capitalize">{selected.payment_method === 'cash' ? '💵 Cash' : '📱 UPI'}</p>
               </div>
-              <div className="flex-1 bg-gray-50 rounded-xl p-3 text-center">
-                <p className="text-xs text-gray-500">Payment Status</p>
-                <p className={`font-semibold ${selected.payment_status === 'paid' ? 'text-green-600' : selected.payment_status === 'failed' ? 'text-red-600' : 'text-yellow-600'}`}>
+              <div className="flex-1 bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-700/50 rounded-xl p-3 text-center">
+                <p className="text-xs text-gray-500 dark:text-gray-400">Payment Status</p>
+                <p className={`font-semibold ${selected.payment_status === 'paid' ? 'text-green-600 dark:text-green-400' : selected.payment_status === 'failed' ? 'text-red-600 dark:text-red-400' : 'text-yellow-600 dark:text-yellow-400'}`}>
                   {selected.payment_status === 'paid' ? '✓ Paid' : selected.payment_status === 'failed' ? '✗ Failed' : 'Unpaid'}
                 </p>
               </div>
@@ -375,14 +375,14 @@ export default function OrdersPage() {
             {selected.payment_status !== 'paid' ? (
               <button
                 onClick={() => markAsPaid(selected.id)}
-                className="w-full py-2 rounded-xl text-sm font-semibold bg-green-50 text-green-700 hover:bg-green-100 transition-all border border-green-200"
+                className="w-full py-2 rounded-xl text-sm font-semibold bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/40 transition-all border border-green-200 dark:border-green-900/50"
               >
                 ✓ Mark as Paid
               </button>
             ) : selected.payment_method === 'cash' && (
               <button
                 onClick={() => markAsUnpaid(selected.id)}
-                className="w-full py-2 rounded-xl text-sm font-semibold bg-gray-50 text-gray-500 hover:bg-gray-100 transition-all border border-gray-200"
+                className="w-full py-2 rounded-xl text-sm font-semibold bg-gray-50 dark:bg-slate-800/50 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-800 transition-all border border-gray-200 dark:border-slate-700/50"
               >
                 ↩ Undo Payment
               </button>
@@ -391,7 +391,7 @@ export default function OrdersPage() {
             {/* Status update */}
             {!['completed', 'cancelled'].includes(selected.status) && (
               <div>
-                <p className="text-sm font-medium text-gray-700 mb-2">Update status</p>
+                <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Update status</p>
                 <div className="flex flex-wrap gap-2">
                   {(NEXT_STATUS[selected.status] ?? []).map((s) => (
                     <button

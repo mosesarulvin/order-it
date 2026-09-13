@@ -45,9 +45,13 @@ export function bootObservability(opts: BootOptions = {}): void {
   })
 
   const report = (metric: { name: string; value: number; id: string }) => {
-    Sentry.metrics?.distribution?.(`web-vitals.${metric.name.toLowerCase()}`, metric.value, {
-      unit: metric.name === 'CLS' ? 'none' : 'millisecond',
-    })
+    try {
+      Sentry.metrics?.distribution?.(`web-vitals.${metric.name.toLowerCase()}`, metric.value, {
+        unit: metric.name === 'CLS' ? 'none' : 'millisecond',
+      })
+    } catch {
+      // Swallow malformed PerformanceEntry errors (known web-vitals edge case)
+    }
   }
 
   onCLS(report)

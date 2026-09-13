@@ -263,12 +263,12 @@ export default function DashboardHome() {
                       if (active && payload && payload.length) {
                         const data = payload[0].payload
                         return (
-                          <div className="bg-slate-900 text-white p-3 rounded-xl shadow-xl text-xs space-y-1">
-                            <p className="font-semibold text-slate-300">
+                          <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 p-3 rounded-xl shadow-xl text-xs space-y-1">
+                            <p className="font-semibold text-gray-500 dark:text-slate-400">
                               {timeRange === 'hourly' ? `Time: ${data.label}` : `Date: ${data.label}`}
                             </p>
-                            <p className="text-orange-400 font-bold">Revenue: {formatCurrency(data.revenue)}</p>
-                            <p className="text-slate-300">Orders: {data.orders}</p>
+                            <p className="text-orange-600 dark:text-orange-400 font-bold">Revenue: {formatCurrency(data.revenue)}</p>
+                            <p className="text-gray-600 dark:text-gray-300">Orders: {data.orders}</p>
                           </div>
                         )
                       }
@@ -315,14 +315,15 @@ export default function DashboardHome() {
                         if (active && payload && payload.length) {
                           const d = payload[0].payload
                           return (
-                            <div className="bg-slate-900 text-white p-2.5 rounded-xl shadow-lg text-xs">
-                              <p className="font-semibold">{d.name}</p>
-                              <p className="text-orange-400">{d.quantity} sold ({formatCurrency(d.revenue)})</p>
+                            <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 p-2.5 rounded-xl shadow-lg text-xs">
+                              <p className="font-semibold text-gray-900 dark:text-white mb-0.5">{d.name}</p>
+                              <p className="text-orange-600 dark:text-orange-400">{d.quantity} sold ({formatCurrency(d.revenue)})</p>
                             </div>
                           )
                         }
                         return null
                       }}
+                      cursor={{ fill: 'rgba(148, 163, 184, 0.1)' }}
                     />
                     <Bar dataKey="quantity" fill="#f97316" radius={[0, 8, 8, 0]} barSize={18} />
                   </BarChart>
@@ -361,7 +362,19 @@ export default function DashboardHome() {
                             <Cell key={`cell-${index}`} fill={entry.color} />
                           ))}
                         </Pie>
-                        <Tooltip />
+                        <Tooltip 
+                          content={({ active, payload }) => {
+                            if (active && payload && payload.length) {
+                              const d = payload[0].payload
+                              return (
+                                <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 p-2 rounded-lg shadow-lg text-xs">
+                                  <p className="text-gray-900 dark:text-white font-medium">{d.name} : <span className="text-orange-600 dark:text-orange-400 font-bold">{d.value}</span></p>
+                                </div>
+                              )
+                            }
+                            return null
+                          }}
+                        />
                       </PieChart>
                     </ResponsiveContainer>
                   </div>
@@ -392,7 +405,19 @@ export default function DashboardHome() {
                             <Cell key={`cell-${index}`} fill={entry.color} />
                           ))}
                         </Pie>
-                        <Tooltip />
+                        <Tooltip 
+                          content={({ active, payload }) => {
+                            if (active && payload && payload.length) {
+                              const d = payload[0].payload
+                              return (
+                                <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 p-2 rounded-lg shadow-lg text-xs">
+                                  <p className="text-gray-900 dark:text-white font-medium">{d.name} : <span className="text-orange-600 dark:text-orange-400 font-bold">{d.value}</span></p>
+                                </div>
+                              )
+                            }
+                            return null
+                          }}
+                        />
                       </PieChart>
                     </ResponsiveContainer>
                   </div>

@@ -50,6 +50,21 @@ export default function MenuPage() {
   const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set())
 
   // modals
+  const downloadImage = async (url: string, filename: string) => {
+    try {
+      const res = await fetch(url)
+      const blob = await res.blob()
+      const blobUrl = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = blobUrl
+      a.download = filename
+      a.click()
+      URL.revokeObjectURL(blobUrl)
+    } catch {
+      toast.error('Download failed')
+    }
+  }
+
   const [catModal, setCatModal] = useState<{ open: boolean; editing?: MenuCategory }>({ open: false })
   const [itemModal, setItemModal] = useState<{ open: boolean; editing?: MenuItem; categoryId?: string }>({ open: false })
   const [uploadingImage, setUploadingImage] = useState(false)
@@ -468,11 +483,7 @@ export default function MenuPage() {
                         e.stopPropagation()
                         const currentImage = imagePreview || itemModal.editing?.image_url
                         if (currentImage) {
-                          const a = document.createElement('a')
-                          a.href = currentImage
-                          a.download = itemForm.getValues('name') || 'menu-item-image'
-                          a.target = '_blank'
-                          a.click()
+                          downloadImage(currentImage, itemForm.getValues('name') || 'menu-item-image')
                         }
                       }}
                       className="p-1.5 bg-white/90 dark:bg-slate-800/90 hover:bg-white dark:hover:bg-slate-700 text-gray-700 dark:text-gray-200 rounded-lg shadow-sm backdrop-blur-sm transition-colors"
