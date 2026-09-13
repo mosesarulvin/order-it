@@ -753,7 +753,7 @@ export default function AdminDashboard() {
       )}
 
       {/* ── SUSPEND MODAL ─────────────────────────────────────────────────────── */}
-      <Modal isOpen={!!suspendTarget} onClose={() => { setSuspendTarget(null); setSuspendReason('') }} title={suspendTarget?.status === 'suspended' ? `Reactivate ${suspendTarget?.name}?` : `Suspend ${suspendTarget?.name}?`}>
+      <Modal open={!!suspendTarget} onClose={() => { setSuspendTarget(null); setSuspendReason('') }} title={suspendTarget?.status === 'suspended' ? `Reactivate ${suspendTarget?.name}?` : `Suspend ${suspendTarget?.name}?`}>
         <div className="space-y-4">
           {suspendTarget?.status !== 'suspended' && (
             <div>
@@ -772,7 +772,7 @@ export default function AdminDashboard() {
       </Modal>
 
       {/* ── FEATURE FLAGS MODAL ───────────────────────────────────────────────── */}
-      <Modal isOpen={!!flagsTarget} onClose={() => setFlagsTarget(null)} title={`Feature Flags — ${flagsTarget?.name}`}>
+      <Modal open={!!flagsTarget} onClose={() => setFlagsTarget(null)} title={`Feature Flags — ${flagsTarget?.name}`}>
         {flagsTarget && (
           <div className="space-y-4">
             <p className="text-xs text-gray-500 dark:text-gray-400">Control which features are enabled for this shop's customers.</p>
