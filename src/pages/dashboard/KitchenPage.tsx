@@ -450,7 +450,23 @@ export default function KitchenPage() {
                               {order.discount_amount > 0 && (
                                 <p className="text-green-600">-{formatCurrency(order.discount_amount)}{order.coupon_code ? ` (${order.coupon_code})` : ''}</p>
                               )}
-                              <span className="font-semibold text-gray-900 dark:text-white">{formatCurrency(order.total)}</span>
+                              {(() => {
+                                const itemDiscount = order.items?.reduce((diff, item) => {
+                                  if (item.original_price && item.original_price > item.price) {
+                                    return diff + (item.original_price - item.price) * item.quantity;
+                                  }
+                                  return diff;
+                                }, 0) || 0;
+                                
+                                return itemDiscount > 0 ? (
+                                  <div className="flex items-center gap-1.5 justify-end">
+                                    <span className="text-gray-400 line-through text-[10px]">{formatCurrency(order.total + itemDiscount)}</span>
+                                    <span className="font-bold text-orange-600 dark:text-orange-400">{formatCurrency(order.total)}</span>
+                                  </div>
+                                ) : (
+                                  <span className="font-semibold text-gray-900 dark:text-white">{formatCurrency(order.total)}</span>
+                                );
+                              })()}
                             </div>
                           </div>
 

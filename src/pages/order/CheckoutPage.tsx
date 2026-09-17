@@ -268,9 +268,22 @@ export default function CheckoutPage() {
                         ))}
                       </div>
                     )}
-                    <p className="text-sm font-semibold text-brand-accent dark:text-brand-primary mt-0.5">
-                      {formatCurrency(unit)}
-                    </p>
+                    {(() => {
+                      const baseOrig = ci.variant?.original_price ?? ci.menu_item.original_price
+                      const customizationsPrice = ci.customizations?.reduce((s, c) => s + (c.price || 0), 0) || 0
+                      const unitOrig = baseOrig ? baseOrig + customizationsPrice : undefined
+                      
+                      return unitOrig ? (
+                        <p className="text-sm mt-0.5 flex items-center gap-1.5 flex-wrap">
+                          <span className="text-xs text-gray-400 line-through">{formatCurrency(unitOrig)}</span>
+                          <span className="font-bold text-orange-600 dark:text-orange-400">{formatCurrency(unit)}</span>
+                        </p>
+                      ) : (
+                        <p className="text-sm font-semibold text-brand-accent dark:text-brand-primary mt-0.5">
+                          {formatCurrency(unit)}
+                        </p>
+                      )
+                    })()}
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="flex items-center gap-1.5 bg-gray-50 dark:bg-slate-800 rounded-xl p-1">

@@ -114,7 +114,12 @@ export default function OrderSuccessPage() {
       .channel(`order-tracking-${orderId}`)
       .on(
         'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'orders', filter: `id=eq.${orderId}` },
+        { event: 'UPDATE', schema: 'public', table: 'order_status_changes', filter: `order_id=eq.${orderId}` },
+        () => { fetchOrder() },
+      )
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'order_status_changes', filter: `order_id=eq.${orderId}` },
         () => { fetchOrder() },
       )
       .subscribe()
@@ -329,7 +334,19 @@ export default function OrderSuccessPage() {
             {order.items?.map((item) => (
               <div key={item.id} className="px-4 py-3 flex justify-between text-sm">
                 <span className="text-gray-700 dark:text-gray-300">{item.name} <span className="text-gray-400 dark:text-gray-500">×{item.quantity}</span></span>
-                <span className="font-semibold text-gray-900 dark:text-white">{formatCurrency(item.subtotal)}</span>
+                {(() => {
+                  const hasDiscount = item.original_price && item.original_price > item.price
+                  const origSubtotal = hasDiscount ? item.original_price! * item.quantity : undefined
+                  
+                  return origSubtotal ? (
+                    <div className="flex items-center gap-1.5 flex-wrap justify-end text-right">
+                      <span className="text-xs text-gray-400 line-through">{formatCurrency(origSubtotal)}</span>
+                      <span className="font-bold text-orange-600 dark:text-orange-400">{formatCurrency(item.subtotal)}</span>
+                    </div>
+                  ) : (
+                    <span className="font-semibold text-gray-900 dark:text-white">{formatCurrency(item.subtotal)}</span>
+                  )
+                })()}
               </div>
             ))}
           </div>

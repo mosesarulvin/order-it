@@ -59,6 +59,7 @@ export interface MenuItemVariant {
   unit?: string
   price: number
   is_out_of_stock?: boolean
+  original_price?: number
 }
 
 export interface MenuItem {
@@ -84,6 +85,7 @@ export interface MenuItem {
   sort_order: number
   is_category_image: boolean
   is_special: boolean
+  original_price?: number
   rating_average?: number
   rating_count?: number
   created_at: string
@@ -94,6 +96,24 @@ export interface MenuItem {
 export type OrderStatus = 'pending' | 'confirmed' | 'preparing' | 'ready' | 'completed' | 'cancelled'
 export type PaymentMethod = 'upi' | 'cash'
 export type PaymentStatus = 'pending' | 'paid' | 'failed'
+
+export type PromotionTargetType = 'category' | 'item' | 'all'
+export type PromotionDiscountType = 'percentage' | 'flat'
+
+export interface Promotion {
+  id: string
+  shop_id: string
+  title: string
+  image_url: string | null
+  discount_type: PromotionDiscountType
+  discount_value: number
+  target_type: PromotionTargetType
+  target_id: string | null
+  is_active: boolean
+  valid_until: string | null
+  created_at: string
+  updated_at: string
+}
 
 export interface Order {
   id: string
@@ -134,6 +154,7 @@ export interface OrderItem {
   customizations: { group: string; choice: string; price: number }[]
   created_at: string
   menu_item?: MenuItem
+  original_price?: number
 }
 
 export interface CartItem {

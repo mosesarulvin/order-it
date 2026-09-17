@@ -565,7 +565,19 @@ function ActiveOrderCard({
           {order.items.map((item, idx) => (
             <div key={idx} className="flex justify-between">
               <span>{item.name} <span className="font-bold text-gray-900 dark:text-white">×{item.quantity}</span></span>
-              <span className="font-medium">{formatCurrency(item.subtotal)}</span>
+              {(() => {
+                const hasDiscount = item.original_price && item.original_price > item.price
+                const origSubtotal = hasDiscount ? item.original_price! * item.quantity : undefined
+                
+                return origSubtotal ? (
+                  <div className="flex items-center gap-1.5 flex-wrap justify-end text-right">
+                    <span className="text-xs text-gray-400 line-through">{formatCurrency(origSubtotal)}</span>
+                    <span className="font-bold text-orange-600 dark:text-orange-400">{formatCurrency(item.subtotal)}</span>
+                  </div>
+                ) : (
+                  <span className="font-medium">{formatCurrency(item.subtotal)}</span>
+                )
+              })()}
             </div>
           ))}
         </div>
@@ -715,7 +727,19 @@ function OrderHistoryCard({
               <span className="truncate pr-2">
                 <span className="font-bold text-gray-900 dark:text-white">{item.quantity}×</span> {item.name}
               </span>
-              <span className="font-semibold tabular-nums shrink-0">{formatCurrency(item.subtotal)}</span>
+              {(() => {
+                const hasDiscount = item.original_price && item.original_price > item.price
+                const origSubtotal = hasDiscount ? item.original_price! * item.quantity : undefined
+                
+                return origSubtotal ? (
+                  <div className="flex items-center gap-1.5 flex-wrap justify-end text-right">
+                    <span className="text-xs text-gray-400 line-through">{formatCurrency(origSubtotal)}</span>
+                    <span className="font-bold text-orange-600 dark:text-orange-400">{formatCurrency(item.subtotal)}</span>
+                  </div>
+                ) : (
+                  <span className="font-semibold tabular-nums shrink-0">{formatCurrency(item.subtotal)}</span>
+                )
+              })()}
             </div>
           ))}
         </div>

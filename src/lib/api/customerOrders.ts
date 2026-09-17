@@ -55,6 +55,7 @@ export interface CustomerOrderSummary {
     quantity:       number
     subtotal:       number
     customizations: { group: string; choice: string; price: number }[]
+    original_price?: number
   }[]
 }
 

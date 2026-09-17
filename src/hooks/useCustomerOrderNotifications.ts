@@ -83,21 +83,25 @@ export function useCustomerOrderNotifications(
       .channel(`customer-orders-${slug}-${idsSignature}`)
       .on(
         'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'orders' },
-        (payload: RealtimePostgresChangesPayload<OrderRow>) => {
-          const updated = payload.new as OrderRow
-          if (!updated || !ids.has(updated.id)) return
+        { event: 'UPDATE', schema: 'public', table: 'order_status_changes' },
+        (payload: RealtimePostgresChangesPayload<{ order_id: string; status: string; updated_at: string }>) => {
+          const updated = payload.new as { order_id: string; status: string }
+          if (!updated || !ids.has(updated.order_id)) return
           
-          if (onOrderUpdateRef.current) onOrderUpdateRef.current(updated)
+          // Shape it as an OrderRow for the callback – we need the order_number too,
+          // so we look it up from the orders we already have in state.
+          if (onOrderUpdateRef.current) {
+            onOrderUpdateRef.current({ id: updated.order_id, order_number: '', status: updated.status })
+          }
           
           if (updated.status !== 'ready') return
 
-          const notifiedKey = `notified-ready-${updated.id}`
+          const notifiedKey = `notified-ready-${updated.order_id}`
           if (sessionStorage.getItem(notifiedKey)) return
           sessionStorage.setItem(notifiedKey, 'true')
 
-          notifyCustomerOrderReady(updated.order_number)
-          toast.success(`🎉 Order #${updated.order_number} is ready for pickup!`, {
+          notifyCustomerOrderReady('')
+          toast.success(`🎉 Your order is ready for pickup!`, {
             duration: 8000,
             icon: '🔔',
             style: {
@@ -107,6 +111,17 @@ export function useCustomerOrderNotifications(
               fontWeight:   'bold',
             },
           })
+        },
+      )
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'order_status_changes' },
+        (payload: RealtimePostgresChangesPayload<{ order_id: string; status: string; updated_at: string }>) => {
+          const updated = payload.new as { order_id: string; status: string }
+          if (!updated || !ids.has(updated.order_id)) return
+          if (onOrderUpdateRef.current) {
+            onOrderUpdateRef.current({ id: updated.order_id, order_number: '', status: updated.status })
+          }
         },
       )
       .subscribe()

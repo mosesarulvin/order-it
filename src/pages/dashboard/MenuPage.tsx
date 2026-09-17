@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Plus, Pencil, Trash2, GripVertical, ImagePlus, Tag, ChevronDown, ChevronUp, Zap, Package, X as XIcon, Settings2, Image as ImageIcon, Star, Download, Eye } from 'lucide-react'
+import { Plus, Pencil, Trash2, GripVertical, ImagePlus, Tag, ChevronDown, ChevronUp, Zap, Package, X as XIcon, Settings2, Image as ImageIcon, Star, Download, Eye, Search } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -16,6 +16,12 @@ import { Skeleton } from '@/components/ui/Skeleton'
 import type { CustomizationGroup, MenuCategory, MenuItem, MenuItemVariant } from '@/types'
 import toast from 'react-hot-toast'
 import { convertToWebP } from '@/lib/utils'
+
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
+import type { DragEndEvent } from '@dnd-kit/core'
+import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
+
 
 const categorySchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -42,12 +48,193 @@ const itemSchema = z.object({
 type CategoryForm = z.infer<typeof categorySchema>
 type ItemForm = z.infer<typeof itemSchema>
 
+
+
+function SortableCategory({ 
+  cat, 
+  items,
+  filteredItems,
+  expanded, 
+  toggleCat, 
+  openEditCategory, 
+  deleteCategory, 
+  openAddItem,
+  toggleAvailable,
+  openEditItem,
+  deleteItem
+}: {
+  cat: MenuCategory;
+  items: MenuItem[];
+  filteredItems?: MenuItem[];
+  expanded: boolean;
+  toggleCat: (id: string) => void;
+  openEditCategory: (cat: MenuCategory) => void;
+  deleteCategory: (id: string) => void;
+  openAddItem: (categoryId: string) => void;
+  toggleAvailable: (item: MenuItem) => void;
+  openEditItem: (item: MenuItem) => void;
+  deleteItem: (id: string) => void;
+}) {
+  const catItems = items.filter((i) => i.category_id === cat.id)
+  const visibleItems = filteredItems ?? catItems
+  
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: cat.id })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 1 : 0,
+    position: 'relative' as const,
+  }
+
+  return (
+    <div ref={setNodeRef} style={style} className={isDragging ? 'opacity-50 ring-2 ring-brand-primary rounded-2xl' : ''}>
+      <Card>
+        <CardContent className="p-0">
+        {/* Category header */}
+        <div
+          className="flex items-center gap-3 p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800/50 rounded-t-2xl transition-colors"
+          onClick={() => toggleCat(cat.id)}
+        >
+          <div {...attributes} {...listeners} className="cursor-grab hover:text-brand-primary active:cursor-grabbing p-1 -ml-1 text-gray-300 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+            <GripVertical size={16} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <h3 className="font-semibold text-gray-900 dark:text-white">{cat.name}</h3>
+              <span className="text-xs bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-gray-400 px-2 py-0.5 rounded-full">{filteredItems ? `${filteredItems.length}/${catItems.length}` : catItems.length} items</span>
+            </div>
+            {cat.description && <p className="text-sm text-gray-400 dark:text-gray-500 mt-0.5">{cat.description}</p>}
+          </div>
+          <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+            <Button variant="ghost" size="icon" onClick={() => openEditCategory(cat)}>
+              <Pencil size={15} />
+            </Button>
+            <Button variant="ghost" size="icon" onClick={() => deleteCategory(cat.id)} className="hover:text-red-500">
+              <Trash2 size={15} />
+            </Button>
+            <Button variant="secondary" size="sm" onClick={() => openAddItem(cat.id)}>
+              <Plus size={14} className="mr-1" /> Add Item
+            </Button>
+          </div>
+          {expanded ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
+        </div>
+
+        {/* Items */}
+        {expanded && (
+          <div className="border-t border-gray-50 dark:border-slate-800">
+            {catItems.length === 0 ? (
+              <div className="py-8 text-center text-gray-400 dark:text-gray-500 text-sm">
+                No items in this category.{' '}
+                <button className="text-orange-500 font-medium" onClick={(e) => { e.stopPropagation(); openAddItem(cat.id); }}>Add one</button>
+              </div>
+            ) : visibleItems.length === 0 ? (
+              <div className="py-8 text-center text-gray-400 dark:text-gray-500 text-sm">
+                No items match your search.
+              </div>
+            ) : (
+              <div className="divide-y divide-gray-50 dark:divide-slate-800">
+                {visibleItems.map((item) => (
+                  <div key={item.id} className="flex items-center gap-3 p-4 hover:bg-gray-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                    {item.image_url ? (
+                      <img src={item.image_url} alt={item.name} className="w-14 h-14 rounded-xl object-cover flex-shrink-0 border border-gray-100" />
+                    ) : (
+                      <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-orange-50 to-amber-50 flex items-center justify-center flex-shrink-0 border border-orange-100">
+                        <span className="text-2xl">🍽️</span>
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-medium text-gray-900 dark:text-white text-sm">{item.name}</span>
+                        {item.rating_count && item.rating_count > 0 ? <Badge variant="outline" className="border-amber-400 text-amber-600 bg-amber-50 dark:border-amber-500/50 dark:text-amber-500 dark:bg-amber-900/20"><Star size={10} className="mr-1 fill-amber-400" />{Number(item.rating_average).toFixed(1)} ({item.rating_count})</Badge> : null}
+                        {item.is_special && <Badge variant="outline" className="border-yellow-400 text-yellow-600 dark:border-yellow-500/50 dark:text-yellow-500 bg-yellow-50 dark:bg-yellow-900/20"><Star size={10} className="mr-1 fill-yellow-400" />Special</Badge>}
+                        {item.unit && <Badge variant="outline" className="text-gray-500 bg-gray-50 border-gray-200 dark:bg-slate-800 dark:border-slate-700 dark:text-gray-400">{item.unit}</Badge>}
+                        {item.variants && item.variants.length > 0 && <Badge variant="outline" className="text-gray-500 bg-gray-50 border-gray-200 dark:bg-slate-800 dark:border-slate-700 dark:text-gray-400">{item.variants.length} Sizes</Badge>}
+                        {item.is_category_image && <Badge variant="outline" className="text-brand-primary border-brand-primary dark:text-brand-primary dark:border-brand-primary"><ImageIcon size={10} className="mr-1" />Category image</Badge>}
+                        {item.is_instant && <Badge variant="orange"><Zap size={10} className="mr-0.5" />Instant</Badge>}
+                        {item.is_popular && <Badge variant="orange">Popular</Badge>}
+                        {item.is_display_only && <Badge variant="outline" className="border-blue-400 text-blue-600 bg-blue-50 dark:border-blue-500/50 dark:text-blue-400 dark:bg-blue-900/20">Display-only</Badge>}
+                        {!item.is_available && <Badge variant="default">Unavailable</Badge>}
+                        {item.customization_groups?.length > 0 && <Badge variant="default"><Settings2 size={10} className="mr-0.5" />{item.customization_groups.length} options</Badge>}
+                        {item.stock_quantity !== null && (
+                          <Badge variant={item.stock_quantity === 0 ? 'default' : item.stock_quantity <= item.low_stock_threshold ? 'orange' : 'default'}>
+                            <Package size={10} className="mr-0.5" />
+                            {item.stock_quantity === 0 ? 'Out of stock' : `Stock: ${item.stock_quantity}`}
+                          </Badge>
+                        )}</div>
+                      {item.description && <p className="text-xs text-gray-400 mt-0.5 truncate max-w-xs">{item.description}</p>}
+                      <p className="text-sm font-semibold text-orange-600 mt-1">{formatCurrency(item.price)}</p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <Toggle
+                        checked={item.is_available}
+                        onChange={() => toggleAvailable(item)}
+                      />
+                      <Button variant="ghost" size="icon" onClick={() => openEditItem(item)}>
+                        <Pencil size={14} />
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={() => deleteItem(item.id)} className="hover:text-red-500">
+                        <Trash2 size={14} />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
 export default function MenuPage() {
   const { shop } = useAuth()
   const [categories, setCategories] = useState<MenuCategory[]>([])
   const [items, setItems] = useState<MenuItem[]>([])
   const [loading, setLoading] = useState(true)
   const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set())
+  const [searchQuery, setSearchQuery] = useState('')
+
+  // Derived filtered data based on search
+  const q = searchQuery.trim().toLowerCase()
+  const filteredCategories = q
+    ? categories.filter((cat) => {
+        const catMatch = cat.name.toLowerCase().includes(q)
+        const hasItemMatch = items.some(
+          (i) => i.category_id === cat.id && i.name.toLowerCase().includes(q)
+        )
+        return catMatch || hasItemMatch
+      })
+    : categories
+
+  const getFilteredItemsForCat = (catId: string): MenuItem[] | undefined => {
+    if (!q) return undefined
+    return items.filter(
+      (i) => i.category_id === catId && i.name.toLowerCase().includes(q)
+    )
+  }
+
+  // During search, auto-expand matching categories
+  const effectiveExpandedCats = q
+    ? new Set([...expandedCats, ...filteredCategories.map((c) => c.id)])
+    : expandedCats
+
+  const toggleAllCats = () => {
+    if (expandedCats.size > 0) {
+      setExpandedCats(new Set())
+    } else {
+      setExpandedCats(new Set(categories.map((c) => c.id)))
+    }
+  }
 
   // modals
   const downloadImage = async (url: string, filename: string) => {
@@ -276,6 +463,45 @@ export default function MenuPage() {
     setItems((prev) => prev.map((i) => i.id === item.id ? { ...i, is_available: !i.is_available } : i))
   }
 
+  
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  )
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    
+    if (over && active.id !== over.id) {
+      setCategories((items) => {
+        const oldIndex = items.findIndex(cat => cat.id === active.id);
+        const newIndex = items.findIndex(cat => cat.id === over.id);
+        
+        const newOrder = arrayMove(items, oldIndex, newIndex);
+        
+        // Optimistically update backend
+        const updates = newOrder.map((cat, index) => ({
+          id: cat.id,
+          sort_order: index
+        }));
+        
+        // Fire and forget, or handle error
+        Promise.all(updates.map(update => 
+          supabase.from('menu_categories')
+            .update({ sort_order: update.sort_order })
+            .eq('id', update.id)
+        )).catch(err => {
+          console.error("Failed to update sort order", err);
+          toast.error("Failed to save new category order");
+        });
+
+        return newOrder;
+      });
+    }
+  }
+
   const toggleCat = (id: string) => {
     setExpandedCats((prev) => {
       const n = new Set(prev)
@@ -292,10 +518,48 @@ export default function MenuPage() {
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Menu</h2>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{categories.length} categories · {items.length} items</p>
         </div>
-        <Button onClick={openAddCategory} className="gap-2">
-          <Plus size={16} /> Add Category
-        </Button>
+        <div className="flex items-center gap-2">
+          {categories.length > 0 && (
+            <Button variant="outline" size="sm" onClick={toggleAllCats} className="gap-1.5 text-sm">
+              {expandedCats.size > 0 ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+              {expandedCats.size > 0 ? 'Collapse All' : 'Expand All'}
+            </Button>
+          )}
+          <Button onClick={openAddCategory} className="gap-2">
+            <Plus size={16} /> Add Category
+          </Button>
+        </div>
       </div>
+
+      {/* Search bar */}
+      {(categories.length > 0 || items.length > 0) && (
+        <div className="relative">
+          <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search categories or items…"
+            className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition"
+            >
+              <XIcon size={15} />
+            </button>
+          )}
+        </div>
+      )}
+      {q && (
+        <p className="text-xs text-gray-400 dark:text-gray-500 -mt-3">
+          {filteredCategories.length === 0
+            ? 'No results found'
+            : `${filteredCategories.reduce((acc, cat) => acc + (getFilteredItemsForCat(cat.id)?.length ?? items.filter(i => i.category_id === cat.id).length), 0)} item(s) across ${filteredCategories.length} categor${filteredCategories.length === 1 ? 'y' : 'ies'}`
+          }
+        </p>
+      )}
 
       {loading ? (
         <div className="space-y-4">
@@ -311,105 +575,42 @@ export default function MenuPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-4">
-          {categories.map((cat) => {
-            const catItems = items.filter((i) => i.category_id === cat.id)
-            const expanded = expandedCats.has(cat.id)
-
-            return (
-              <Card key={cat.id}>
-                <CardContent className="p-0">
-                  {/* Category header */}
-                  <div
-                    className="flex items-center gap-3 p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800/50 rounded-t-2xl transition-colors"
-                    onClick={() => toggleCat(cat.id)}
-                  >
-                    <GripVertical size={16} className="text-gray-300 flex-shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-semibold text-gray-900 dark:text-white">{cat.name}</h3>
-                        <span className="text-xs bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-gray-400 px-2 py-0.5 rounded-full">{catItems.length} items</span>
-                      </div>
-                      {cat.description && <p className="text-sm text-gray-400 dark:text-gray-500 mt-0.5">{cat.description}</p>}
-                    </div>
-                    <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                      <Button variant="ghost" size="icon" onClick={() => openEditCategory(cat)}>
-                        <Pencil size={15} />
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={() => deleteCategory(cat.id)} className="hover:text-red-500">
-                        <Trash2 size={15} />
-                      </Button>
-                      <Button variant="secondary" size="sm" onClick={() => openAddItem(cat.id)}>
-                        <Plus size={14} className="mr-1" /> Add Item
-                      </Button>
-                    </div>
-                    {expanded ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
-                  </div>
-
-                  {/* Items */}
-                  {expanded && (
-                    <div className="border-t border-gray-50 dark:border-slate-800">
-                      {catItems.length === 0 ? (
-                        <div className="py-8 text-center text-gray-400 dark:text-gray-500 text-sm">
-                          No items in this category.{' '}
-                          <button className="text-orange-500 font-medium" onClick={() => openAddItem(cat.id)}>Add one</button>
-                        </div>
-                      ) : (
-                        <div className="divide-y divide-gray-50 dark:divide-slate-800">
-                          {catItems.map((item) => (
-                            <div key={item.id} className="flex items-center gap-3 p-4 hover:bg-gray-50/50 dark:hover:bg-slate-800/30 transition-colors">
-                              {item.image_url ? (
-                                <img src={item.image_url} alt={item.name} className="w-14 h-14 rounded-xl object-cover flex-shrink-0 border border-gray-100" />
-                              ) : (
-                                <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-orange-50 to-amber-50 flex items-center justify-center flex-shrink-0 border border-orange-100">
-                                  <span className="text-2xl">🍽️</span>
-                                </div>
-                              )}
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <span className="font-medium text-gray-900 dark:text-white text-sm">{item.name}</span>
-                                  {item.rating_count && item.rating_count > 0 ? <Badge variant="outline" className="border-amber-400 text-amber-600 bg-amber-50 dark:border-amber-500/50 dark:text-amber-500 dark:bg-amber-900/20"><Star size={10} className="mr-1 fill-amber-400" />{Number(item.rating_average).toFixed(1)} ({item.rating_count})</Badge> : null}
-                                  {item.is_special && <Badge variant="outline" className="border-yellow-400 text-yellow-600 dark:border-yellow-500/50 dark:text-yellow-500 bg-yellow-50 dark:bg-yellow-900/20"><Star size={10} className="mr-1 fill-yellow-400" />Special</Badge>}
-                                  {item.unit && <Badge variant="outline" className="text-gray-500 bg-gray-50 border-gray-200 dark:bg-slate-800 dark:border-slate-700 dark:text-gray-400">{item.unit}</Badge>}
-                                  {item.variants && item.variants.length > 0 && <Badge variant="outline" className="text-gray-500 bg-gray-50 border-gray-200 dark:bg-slate-800 dark:border-slate-700 dark:text-gray-400">{item.variants.length} Sizes</Badge>}
-                                  {item.is_category_image && <Badge variant="outline" className="text-brand-primary border-brand-primary dark:text-brand-primary dark:border-brand-primary"><ImageIcon size={10} className="mr-1" />Category image</Badge>}
-                                  {item.is_instant && <Badge variant="orange"><Zap size={10} className="mr-0.5" />Instant</Badge>}
-                                  {item.is_popular && <Badge variant="orange">Popular</Badge>}
-                                  {item.is_display_only && <Badge variant="outline" className="border-blue-400 text-blue-600 bg-blue-50 dark:border-blue-500/50 dark:text-blue-400 dark:bg-blue-900/20">Display-only</Badge>}
-                                  {!item.is_available && <Badge variant="default">Unavailable</Badge>}
-                                  {item.customization_groups?.length > 0 && <Badge variant="default"><Settings2 size={10} className="mr-0.5" />{item.customization_groups.length} options</Badge>}
-                                  {item.stock_quantity !== null && (
-                                    <Badge variant={item.stock_quantity === 0 ? 'default' : item.stock_quantity <= item.low_stock_threshold ? 'orange' : 'default'}>
-                                      <Package size={10} className="mr-0.5" />
-                                      {item.stock_quantity === 0 ? 'Out of stock' : `Stock: ${item.stock_quantity}`}
-                                    </Badge>
-                                  )}</div>
-                                {item.description && <p className="text-xs text-gray-400 mt-0.5 truncate max-w-xs">{item.description}</p>}
-                                <p className="text-sm font-semibold text-orange-600 mt-1">{formatCurrency(item.price)}</p>
-                              </div>
-                              <div className="flex items-center gap-2 flex-shrink-0">
-                                <Toggle
-                                  checked={item.is_available}
-                                  onChange={() => toggleAvailable(item)}
-                                />
-                                <Button variant="ghost" size="icon" onClick={() => openEditItem(item)}>
-                                  <Pencil size={14} />
-                                </Button>
-                                <Button variant="ghost" size="icon" onClick={() => deleteItem(item.id)} className="hover:text-red-500">
-                                  <Trash2 size={14} />
-                                </Button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            )
-          })}
-        </div>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext
+            items={categories.map(c => c.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            <div className="space-y-4">
+              {filteredCategories.map((cat) => (
+                <SortableCategory
+                  key={cat.id}
+                  cat={cat}
+                  items={items}
+                  filteredItems={getFilteredItemsForCat(cat.id)}
+                  expanded={effectiveExpandedCats.has(cat.id)}
+                  toggleCat={toggleCat}
+                  openEditCategory={openEditCategory}
+                  deleteCategory={deleteCategory}
+                  openAddItem={openAddItem}
+                  toggleAvailable={toggleAvailable}
+                  openEditItem={openEditItem}
+                  deleteItem={deleteItem}
+                />
+              ))}
+              {q && filteredCategories.length === 0 && (
+                <div className="py-16 text-center">
+                  <Search size={40} className="text-gray-200 dark:text-slate-700 mx-auto mb-3" />
+                  <p className="text-gray-500 dark:text-gray-400 font-medium">No results for "{searchQuery}"</p>
+                  <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">Try a different search term</p>
+                </div>
+              )}
+            </div>
+          </SortableContext>
+        </DndContext>
       )}
 
       {/* Category Modal */}

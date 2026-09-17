@@ -8,7 +8,8 @@ import { useCustomerOrderNotifications } from '@/hooks/useCustomerOrderNotificat
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { MenuItemSkeleton } from '@/components/ui/Skeleton'
 import { getSessionToken, getCachedIdentity } from '@/lib/customerSession'
-import type { CustomizationGroup, Shop, MenuCategory, MenuItem } from '@/types'
+import type { CustomizationGroup, Shop, MenuCategory, MenuItem, Promotion } from '@/types'
+import { getDiscountedPrice } from '@/lib/promotions'
 import toast from 'react-hot-toast'
 
 // Renders `* foo` / `- foo` line-prefixed text as an actual bullet list.
@@ -37,6 +38,7 @@ export default function OrderMenuPage() {
   const [shop, setShop] = useState<Shop | null>(null)
   const [categories, setCategories] = useState<MenuCategory[]>([])
   const [items, setItems] = useState<MenuItem[]>([])
+  const [promotions, setPromotions] = useState<Promotion[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [activeCategory, setActiveCategory] = useState<string | null>(null)
@@ -161,14 +163,54 @@ export default function OrderMenuPage() {
     setShop(shopData)
     setShopSlug(slug)
 
-    const [catRes, itemRes] = await Promise.all([
+    const [catRes, itemRes, promoRes] = await Promise.all([
       supabase.from('menu_categories').select('*').eq('shop_id', shopData.id).eq('is_active', true).order('sort_order'),
       supabase.from('menu_items').select('*').eq('shop_id', shopData.id).eq('is_available', true).order('sort_order'),
+      supabase.from('promotions').select('*').eq('shop_id', shopData.id).eq('is_active', true),
     ])
 
     const cats = (catRes.data as MenuCategory[]) || []
+    const activePromotions = (promoRes.data as Promotion[]) || []
     setCategories(cats)
-    setItems((itemRes.data as MenuItem[]) || [])
+    setPromotions(activePromotions)
+
+    let fetchedItems = (itemRes.data as MenuItem[]) || []
+    
+    // Apply promotions dynamically before setting items state
+    if (activePromotions.length > 0) {
+      fetchedItems = fetchedItems.map(item => {
+        const { price, originalPrice, hasDiscount } = getDiscountedPrice(item, activePromotions)
+        
+        let takeaway_price = item.takeaway_price;
+        if (takeaway_price != null && takeaway_price > 0 && hasDiscount) {
+          // Keep takeaway premium proportional to original
+          const takeawayMarkup = item.takeaway_price! - originalPrice;
+          takeaway_price = price + takeawayMarkup;
+        }
+        
+        let processedVariants = item.variants;
+        if (processedVariants && processedVariants.length > 0) {
+          processedVariants = processedVariants.map(v => {
+            const vDiscount = getDiscountedPrice({ ...item, price: v.price } as MenuItem, activePromotions);
+            return {
+              ...v,
+              price: vDiscount.price,
+              original_price: vDiscount.hasDiscount ? vDiscount.originalPrice : undefined
+            }
+          })
+        }
+        
+        return {
+          ...item,
+          price,
+          original_price: hasDiscount ? originalPrice : undefined,
+          takeaway_price,
+          variants: processedVariants
+        }
+      })
+    }
+    
+    setItems(fetchedItems)
     if (cats.length > 0) setActiveCategory(cats[0].id)
     setLoading(false)
   }
@@ -410,6 +452,31 @@ export default function OrderMenuPage() {
         </div>
       </div>
 
+      {/* Promotions Banner Carousel */}
+      {promotions.length > 0 && !search && (
+        <div className="w-full bg-gray-50 dark:bg-slate-950">
+          <div className="max-w-lg mx-auto overflow-x-auto flex gap-4 px-4 pb-4 pt-4 snap-x hide-scrollbar">
+            {promotions.map((promo) => (
+              <div key={promo.id} className="min-w-[85vw] sm:min-w-[340px] h-40 md:h-48 rounded-2xl overflow-hidden relative snap-center shadow-md flex-shrink-0 bg-gradient-to-br from-orange-400 to-orange-600 flex flex-col justify-end">
+                {promo.image_url && (
+                  <>
+                    <img src={promo.image_url} alt={promo.title} className="w-full h-full object-cover absolute inset-0" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent pointer-events-none" />
+                  </>
+                )}
+                <div className="relative z-10 p-4 text-white pointer-events-none">
+                  <div className="text-lg md:text-xl font-bold truncate text-shadow mb-1">{promo.title}</div>
+                  <div className="text-sm font-medium opacity-90">
+                    {promo.discount_type === 'percentage' ? `${promo.discount_value}% OFF` : `₹${promo.discount_value} OFF`}
+                    {promo.target_type !== 'all' && ' on selected items'}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Category pills — hidden while searching or when grab-and-go-only mode */}
       {!search && !grabAndGoOnly && (
         <div className="sticky top-0 z-10 bg-white dark:bg-slate-950 border-b border-gray-100 dark:border-slate-800 shadow-sm">
@@ -527,7 +594,14 @@ export default function OrderMenuPage() {
                       ) : null}
                     </div>
                     <span className="font-bold text-brand-accent dark:text-brand-primary flex-shrink-0">
-                      {item.variants && item.variants.length > 0 ? `From ${formatCurrency(item.price)}` : formatCurrency(item.price)}
+                      {item.original_price ? (
+                        <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                          <span className="text-xs text-gray-400 line-through">{item.variants && item.variants.length > 0 ? `From ${formatCurrency(item.original_price)}` : formatCurrency(item.original_price)}</span>
+                          <span className="font-bold text-orange-600 dark:text-orange-400">{item.variants && item.variants.length > 0 ? `From ${formatCurrency(item.price)}` : formatCurrency(item.price)}</span>
+                        </div>
+                      ) : (
+                        item.variants && item.variants.length > 0 ? `From ${formatCurrency(item.price)}` : formatCurrency(item.price)
+                      )}
                     </span>
                   </div>
                   {item.description && <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 mb-3 flex-1">{item.description}</p>}
@@ -724,7 +798,14 @@ export default function OrderMenuPage() {
                               )}
                               <div className="flex items-center justify-between mt-2">
                                 <span className="font-extrabold text-brand-accent dark:text-brand-primary text-base sm:text-lg tracking-tight">
-                                  {item.variants && item.variants.length > 0 ? `From ${formatCurrency(item.price)}` : formatCurrency(item.price)}
+                                  {item.original_price ? (
+                        <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                          <span className="text-xs text-gray-400 line-through">{item.variants && item.variants.length > 0 ? `From ${formatCurrency(item.original_price)}` : formatCurrency(item.original_price)}</span>
+                          <span className="font-bold text-orange-600 dark:text-orange-400">{item.variants && item.variants.length > 0 ? `From ${formatCurrency(item.price)}` : formatCurrency(item.price)}</span>
+                        </div>
+                      ) : (
+                        item.variants && item.variants.length > 0 ? `From ${formatCurrency(item.price)}` : formatCurrency(item.price)
+                      )}
                                 </span>
                                 {(shop?.ordering_enabled === false || item.is_display_only) ? (
                                   <span className="inline-flex items-center gap-1 text-xs font-semibold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800/40 px-2.5 py-1 rounded-lg">
@@ -779,9 +860,16 @@ export default function OrderMenuPage() {
                       && viewingItem.stock_quantity > 0
                       && viewingItem.stock_quantity <= viewingItem.low_stock_threshold
         const blocked = shop?.ordering_enabled === false || viewingItem.is_display_only
-        const priceLabel = viewingItem.variants && viewingItem.variants.length > 0
-          ? `From ${formatCurrency(viewingItem.price)}`
-          : formatCurrency(viewingItem.price)
+        const priceLabel = viewingItem.original_price ? (
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-sm text-gray-400 line-through">{viewingItem.variants && viewingItem.variants.length > 0 ? `From ${formatCurrency(viewingItem.original_price)}` : formatCurrency(viewingItem.original_price)}</span>
+            <span className="font-bold text-orange-600 dark:text-orange-400">{viewingItem.variants && viewingItem.variants.length > 0 ? `From ${formatCurrency(viewingItem.price)}` : formatCurrency(viewingItem.price)}</span>
+          </div>
+        ) : (
+          viewingItem.variants && viewingItem.variants.length > 0
+            ? `From ${formatCurrency(viewingItem.price)}`
+            : formatCurrency(viewingItem.price)
+        )
         // const totalLabel = formatCurrency(viewingItem.price * popupQty)
         const close = () => setViewingItem(null)
 
@@ -906,7 +994,16 @@ export default function OrderMenuPage() {
                     <div className="flex flex-wrap gap-2">
                       {viewingItem.variants.map((v) => (
                         <span key={v.id} className={`inline-flex items-center gap-2 text-xs font-medium px-2.5 py-1.5 rounded-lg border ${v.is_out_of_stock ? 'bg-gray-50 dark:bg-slate-800 text-gray-400 border-gray-100 dark:border-slate-700 line-through' : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-slate-700'}`}>
-                          {v.size}{v.unit ? ` ${v.unit}` : ''} · <span className={`font-bold ${v.is_out_of_stock ? '' : 'text-brand-accent dark:text-brand-primary'}`}>{formatCurrency(v.price)}</span>
+                          {v.size}{v.unit ? ` ${v.unit}` : ''} · 
+                          {v.original_price ? (
+                            <span className="flex items-center gap-1">
+                              <span className="text-xs text-gray-400 line-through">{formatCurrency(v.original_price)}</span>
+                              <span className={`font-bold ${v.is_out_of_stock ? '' : 'text-orange-600 dark:text-orange-400'}`}>{formatCurrency(v.price)}</span>
+                            </span>
+                          ) : (
+                            <span className={`font-bold ${v.is_out_of_stock ? '' : 'text-brand-accent dark:text-brand-primary'}`}>{formatCurrency(v.price)}</span>
+                          )}
+
                         </span>
                       ))}
                     </div>

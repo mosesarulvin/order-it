@@ -34,6 +34,7 @@ const getNavItems = (role: string | null, isSuperAdmin: boolean) => {
   const allItems = [
     { icon: LayoutDashboard, label: 'Dashboard', to: '/dashboard', roles: ['owner', 'manager'] },
     { icon: UtensilsCrossed, label: 'Menu', to: '/dashboard/menu', roles: ['owner', 'manager'] },
+    { icon: Tag, label: 'Promotions', to: '/dashboard/promotions', roles: ['owner', 'manager'] },
     { icon: ClipboardList, label: 'Orders', to: '/dashboard/orders', roles: ['owner', 'manager', 'staff'] },
     { icon: ChefHat, label: 'Kitchen', to: '/dashboard/kitchen', roles: ['owner', 'manager', 'staff'] },
     { icon: UserPlus, label: 'Walk-in', to: '/dashboard/walkin', roles: ['owner', 'manager', 'staff'] },

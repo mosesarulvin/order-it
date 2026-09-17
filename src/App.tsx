@@ -8,6 +8,7 @@ import { useShopTheme } from '@/hooks/useShopTheme'
 // Lazy loaded pages
 const DashboardHome = lazy(() => import('@/pages/dashboard/DashboardHome'))
 const MenuPage = lazy(() => import('@/pages/dashboard/MenuPage'))
+const PromotionsPage = lazy(() => import('@/pages/dashboard/PromotionsPage'))
 const OrdersPage = lazy(() => import('@/pages/dashboard/OrdersPage'))
 const KitchenPage = lazy(() => import('@/pages/dashboard/KitchenPage'))
 const QRCodePage = lazy(() => import('@/pages/dashboard/QRCodePage'))
@@ -138,6 +139,7 @@ export default function App() {
         <Route path="/dashboard/kitchen" element={<ProtectedRoute><DashboardLayout><KitchenPage /></DashboardLayout></ProtectedRoute>} />
         <Route path="/dashboard/stock" element={<ProtectedRoute><DashboardLayout><StockPage /></DashboardLayout></ProtectedRoute>} />
         <Route path="/dashboard/coupons" element={<ProtectedRoute><DashboardLayout><CouponsPage /></DashboardLayout></ProtectedRoute>} />
+        <Route path="/dashboard/promotions" element={<ProtectedRoute><DashboardLayout><PromotionsPage /></DashboardLayout></ProtectedRoute>} />
         <Route path="/dashboard/reviews" element={<ProtectedRoute><DashboardLayout><ReviewsPage /></DashboardLayout></ProtectedRoute>} />
         <Route path="/dashboard/customers" element={<ProtectedRoute><DashboardLayout><CustomersPage /></DashboardLayout></ProtectedRoute>} />
         <Route path="/dashboard/walkin" element={<ProtectedRoute><DashboardLayout><WalkInPage /></DashboardLayout></ProtectedRoute>} />
