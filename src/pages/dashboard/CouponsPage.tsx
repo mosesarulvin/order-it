@@ -1,11 +1,15 @@
 import { useEffect, useState } from 'react'
-import { Plus, Pencil, Tag, ToggleLeft, ToggleRight } from 'lucide-react'
-import { useForm } from 'react-hook-form'
+import { Plus, Pencil, Tag, ToggleLeft, ToggleRight, CalendarIcon, X } from 'lucide-react'
+import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { formatCurrency } from '@/lib/utils'
+import { format } from 'date-fns'
+import { DayPicker } from 'react-day-picker'
+import 'react-day-picker/dist/style.css'
+import * as Popover from '@radix-ui/react-popover'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -241,11 +245,72 @@ export default function CouponsPage() {
             placeholder="e.g. 100"
             {...form.register('max_uses', { setValueAs: (v) => (v === '' || v === null ? null : parseInt(v, 10)) })}
           />
-          <Input
-            label="Expiry date (optional)"
-            type="date"
-            {...form.register('expires_at')}
-          />
+          <div className="space-y-1.5">
+            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">Expiry date (optional)</label>
+            <Controller
+              control={form.control}
+              name="expires_at"
+              render={({ field }) => {
+                const dateValue = field.value ? new Date(field.value) : undefined
+                const [pickerOpen, setPickerOpen] = useState(false)
+                return (
+                  <Popover.Root open={pickerOpen} onOpenChange={setPickerOpen}>
+                    <Popover.Trigger asChild>
+                      <button
+                        type="button"
+                        className="w-full h-10 px-3 flex items-center gap-2 text-left rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm text-gray-900 dark:text-white focus:outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary-lighter transition-colors"
+                      >
+                        <CalendarIcon size={16} className="text-gray-400 shrink-0" />
+                        <span className="flex-1 truncate">{dateValue ? format(dateValue, 'PPP') : 'Select date...'}</span>
+                        {dateValue && (
+                          <X 
+                            size={14} 
+                            className="ml-auto text-gray-400 hover:text-red-500 shrink-0" 
+                            onClick={(e) => { 
+                              e.stopPropagation()
+                              field.onChange('')
+                            }} 
+                          />
+                        )}
+                      </button>
+                    </Popover.Trigger>
+                    <Popover.Portal>
+                      <Popover.Content sideOffset={4} align="start" className="bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-gray-100 dark:border-slate-700 z-[60] p-2">
+                        <style>{`
+                          .rdp-root {
+                            --rdp-accent-color: var(--brand-primary);
+                            --rdp-accent-background-color: var(--color-brand-50);
+                            --rdp-font-family: inherit;
+                            margin: 0;
+                          }
+                          .rdp-day_selected { font-weight: bold; }
+                          .dark .rdp-root { --rdp-accent-background-color: var(--brand-primary-shadow); }
+                          .rdp-months { justify-content: center; }
+                          .rdp-day { border-radius: 6px; font-size: 0.85rem; height: 32px; width: 32px; }
+                          .rdp-head_cell { font-size: 0.8rem; font-weight: 500; text-transform: uppercase; color: #9ca3af; }
+                        `}</style>
+                        <DayPicker 
+                          mode="single"
+                          selected={dateValue}
+                          onSelect={(date) => {
+                            if (date) {
+                              const tzOffset = date.getTimezoneOffset() * 60000;
+                              const localISOTime = (new Date(date.getTime() - tzOffset)).toISOString().split('T')[0];
+                              field.onChange(localISOTime);
+                            } else {
+                              field.onChange('')
+                            }
+                            setPickerOpen(false)
+                          }}
+                          className="text-gray-900 dark:text-gray-200 bg-white dark:bg-slate-800"
+                        />
+                      </Popover.Content>
+                    </Popover.Portal>
+                  </Popover.Root>
+                )
+              }}
+            />
+          </div>
           <div className="flex gap-3 pt-1">
             <Button type="button" variant="outline" className="flex-1" onClick={() => setModal({ open: false })}>Cancel</Button>
             <Button type="submit" className="flex-1" loading={form.formState.isSubmitting}>

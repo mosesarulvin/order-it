@@ -48,6 +48,13 @@
 }
 
 @layer base {
+  :root {
+    color-scheme: light;
+  }
+  .dark {
+    color-scheme: dark;
+  }
+
   * {
     box-sizing: border-box;
     margin: 0;

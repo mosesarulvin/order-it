@@ -10,9 +10,12 @@ import { Button } from '@/components/ui/Button'
 import { Input, Textarea } from '@/components/ui/Input'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Modal } from '@/components/ui/Modal'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { Toggle } from '@/components/ui/Toggle'
 import { Badge } from '@/components/ui/Badge'
 import { Skeleton } from '@/components/ui/Skeleton'
+import { Checkbox } from '@/components/ui/Checkbox'
+import { Radio } from '@/components/ui/Radio'
 import type { CustomizationGroup, MenuCategory, MenuItem, MenuItemVariant } from '@/types'
 import toast from 'react-hot-toast'
 import { convertToWebP } from '@/lib/utils'
@@ -256,6 +259,12 @@ export default function MenuPage() {
   const [itemModal, setItemModal] = useState<{ open: boolean; editing?: MenuItem; categoryId?: string }>({ open: false })
   const [uploadingImage, setUploadingImage] = useState(false)
   const [previewImageModal, setPreviewImageModal] = useState<string | null>(null)
+  
+  // Delete Modals state
+  const [deleteCategoryModal, setDeleteCategoryModal] = useState<{ open: boolean; categoryId: string | null }>({ open: false, categoryId: null })
+  const [deleteItemModal, setDeleteItemModal] = useState<{ open: boolean; itemId: string | null }>({ open: false, itemId: null })
+  const [isDeleting, setIsDeleting] = useState(false)
+
   const fileRef = useRef<HTMLInputElement>(null)
   // customization groups state (managed separately from react-hook-form)
   const [customGroups, setCustomGroups] = useState<CustomizationGroup[]>([])
@@ -311,12 +320,24 @@ export default function MenuPage() {
     fetchMenu()
   }
 
-  const deleteCategory = async (id: string) => {
-    if (!confirm('Delete this category and all its items?')) return
-    await supabase.from('menu_items').delete().eq('category_id', id)
-    await supabase.from('menu_categories').delete().eq('id', id)
-    toast.success('Category deleted')
-    fetchMenu()
+  const deleteCategory = (id: string) => {
+    setDeleteCategoryModal({ open: true, categoryId: id })
+  }
+
+  const confirmDeleteCategory = async () => {
+    if (!deleteCategoryModal.categoryId) return
+    setIsDeleting(true)
+    try {
+      await supabase.from('menu_items').delete().eq('category_id', deleteCategoryModal.categoryId)
+      await supabase.from('menu_categories').delete().eq('id', deleteCategoryModal.categoryId)
+      toast.success('Category deleted')
+      setDeleteCategoryModal({ open: false, categoryId: null })
+      fetchMenu()
+    } catch (error) {
+      toast.error('Failed to delete category')
+    } finally {
+      setIsDeleting(false)
+    }
   }
 
   // ── ITEM ACTIONS ─────────────────────────────────────────────────────────────
@@ -451,11 +472,23 @@ export default function MenuPage() {
     fetchMenu()
   }
 
-  const deleteItem = async (id: string) => {
-    if (!confirm('Delete this item?')) return
-    await supabase.from('menu_items').delete().eq('id', id)
-    toast.success('Item deleted')
-    fetchMenu()
+  const deleteItem = (id: string) => {
+    setDeleteItemModal({ open: true, itemId: id })
+  }
+
+  const confirmDeleteItem = async () => {
+    if (!deleteItemModal.itemId) return
+    setIsDeleting(true)
+    try {
+      await supabase.from('menu_items').delete().eq('id', deleteItemModal.itemId)
+      toast.success('Item deleted')
+      setDeleteItemModal({ open: false, itemId: null })
+      fetchMenu()
+    } catch (error) {
+      toast.error('Failed to delete item')
+    } finally {
+      setIsDeleting(false)
+    }
   }
 
   const toggleAvailable = async (item: MenuItem) => {
@@ -936,15 +969,15 @@ export default function MenuPage() {
                 </div>
                 <div className="flex items-center gap-3 text-xs text-gray-600 dark:text-gray-400">
                   <label className="flex items-center gap-1.5 cursor-pointer">
-                    <input type="radio" checked={group.type === 'single'} onChange={() => setCustomGroups((g) => g.map((x, i) => i === gi ? { ...x, type: 'single' } : x))} className="accent-brand-primary w-3.5 h-3.5" />
+                    <Radio checked={group.type === 'single'} onChange={() => setCustomGroups((g) => g.map((x, i) => i === gi ? { ...x, type: 'single' } : x))} />
                     Single choice
                   </label>
                   <label className="flex items-center gap-1.5 cursor-pointer">
-                    <input type="radio" checked={group.type === 'multi'} onChange={() => setCustomGroups((g) => g.map((x, i) => i === gi ? { ...x, type: 'multi' } : x))} className="accent-brand-primary w-3.5 h-3.5" />
+                    <Radio checked={group.type === 'multi'} onChange={() => setCustomGroups((g) => g.map((x, i) => i === gi ? { ...x, type: 'multi' } : x))} />
                     Multi choice
                   </label>
                   <label className="flex items-center gap-1.5 cursor-pointer ml-auto">
-                    <input type="checkbox" checked={group.required} onChange={(e) => setCustomGroups((g) => g.map((x, i) => i === gi ? { ...x, required: e.target.checked } : x))} className="accent-brand-primary w-3.5 h-3.5 rounded-sm" />
+                    <Checkbox checked={group.required} onChange={(e) => setCustomGroups((g) => g.map((x, i) => i === gi ? { ...x, required: e.target.checked } : x))} />
                     Required
                   </label>
                 </div>
@@ -1010,6 +1043,29 @@ export default function MenuPage() {
           </div>
         )}
       </Modal>
+      {/* Delete Category Modal */}
+      <ConfirmDialog
+        open={deleteCategoryModal.open}
+        onClose={() => setDeleteCategoryModal({ open: false, categoryId: null })}
+        onConfirm={confirmDeleteCategory}
+        title="Delete Category"
+        description="Are you sure you want to delete this category? All menu items inside it will also be permanently deleted."
+        confirmText="Delete"
+        isDanger={true}
+        loading={isDeleting}
+      />
+
+      {/* Delete Item Modal */}
+      <ConfirmDialog
+        open={deleteItemModal.open}
+        onClose={() => setDeleteItemModal({ open: false, itemId: null })}
+        onConfirm={confirmDeleteItem}
+        title="Delete Menu Item"
+        description="Are you sure you want to delete this item? This action cannot be undone."
+        confirmText="Delete"
+        isDanger={true}
+        loading={isDeleting}
+      />
     </div>
   )
 }

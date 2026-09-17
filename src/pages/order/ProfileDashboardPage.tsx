@@ -5,7 +5,8 @@ import {
   ArrowLeft, Tag, ShoppingBag, ChevronRight, LogOut, RotateCcw,
   Phone, Mail,
   Gift, ArrowRight, Clock,
-  Copy, Check, Receipt, Cake, FileText
+  Copy, Check, Receipt, Cake, FileText,
+  Trophy, ArrowUpRight, ArrowDownRight, Ticket, User
 } from 'lucide-react'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { useCustomerOrderNotifications } from '@/hooks/useCustomerOrderNotifications'
@@ -14,9 +15,11 @@ import {
   fetchCustomerProfile,
   fetchCustomerCoupons,
   fetchCustomerOrders,
+  fetchCustomerRewards,
   humanizeError,
   type CustomerCoupon,
   type CustomerOrderSummary,
+  type CustomerRewards,
 } from '@/lib/api/customerOrders'
 import { getSessionToken, signOut } from '@/lib/customerSession'
 import { downloadInvoicePDF, type InvoiceShopData } from '@/lib/invoiceGenerator'
@@ -31,7 +34,7 @@ interface ProfileData {
   birthday?: string | null
 }
 
-type TabKey = 'orders' | 'coupons' | 'account'
+type TabKey = 'orders' | 'coupons' | 'account' | 'rewards'
 
 const STATUS_PILLS: Record<string, string> = {
   pending: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400 border border-yellow-200 dark:border-yellow-800/40',
@@ -59,7 +62,7 @@ export default function ProfileDashboardPage() {
   const [searchParams, setSearchParams] = useSearchParams()
 
   const requestedTab = searchParams.get('tab') as TabKey
-  const initialTab: TabKey = (requestedTab === 'orders' || requestedTab === 'coupons' || requestedTab === 'account')
+  const initialTab: TabKey = (requestedTab === 'orders' || requestedTab === 'coupons' || requestedTab === 'account' || requestedTab === 'rewards')
     ? requestedTab
     : 'orders'
 
@@ -71,6 +74,7 @@ export default function ProfileDashboardPage() {
   const [shop, setShop] = useState<InvoiceShopData | null>(null)
   const [coupons, setCoupons] = useState<CustomerCoupon[]>([])
   const [orders, setOrders] = useState<CustomerOrderSummary[]>([])
+  const [rewards, setRewards] = useState<CustomerRewards | null>(null)
   const [loading, setLoading] = useState(true)
   const [reorderingId, setReorderingId] = useState<string | null>(null)
   const [copiedCode, setCopiedCode] = useState<string | null>(null)
@@ -118,8 +122,9 @@ export default function ProfileDashboardPage() {
       fetchCustomerProfile(token),
       fetchCustomerCoupons(token),
       fetchCustomerOrders(token, 30),
+      fetchCustomerRewards(token),
     ])
-      .then(([p, c, o]) => {
+      .then(([p, c, o, r]) => {
         if (cancelled) return
         if (!p) {
           toast.error('Your session has expired. Please sign in again.')
@@ -129,6 +134,7 @@ export default function ProfileDashboardPage() {
         setProfile({ id: p.id, name: p.name, phone: p.phone, email: p.email, birthday: p.birthday })
         setCoupons(c)
         setOrders(o)
+        setRewards(r)
       })
       .catch((err) => {
         if (!cancelled) toast.error(humanizeError(err))
@@ -278,21 +284,26 @@ export default function ProfileDashboardPage() {
               onClick={() => handleTabChange('orders')}
               icon={<ShoppingBag size={15} className={activeOrders.length > 0 ? 'text-amber-500' : ''} />}
               label="Orders"
-              // badge={activeOrders.length > 0 ? activeOrders.length : (activeOrders.length > 0 ? activeOrders.length : undefined)}
               badgeColor={activeOrders.length > 0 ? 'bg-amber-500 text-white animate-pulse' : 'bg-gray-200 text-gray-700 dark:bg-slate-700 dark:text-gray-300'}
             />
-            <TabButton
+            <TabButton 
+              icon={<Ticket size={16} />} 
+              label={`Coupons${unusedCoupons.length > 0 ? ` (${unusedCoupons.length})` : ''}`} 
               active={activeTab === 'coupons'}
               onClick={() => handleTabChange('coupons')}
-              icon={<Gift size={15} />}
-              label="Coupons & Offers"
-              badge={unusedCoupons.length > 0 ? unusedCoupons.length : undefined}
-              badgeColor="bg-brand-primary text-white"
             />
+            {rewards?.program?.is_enabled && (
+              <TabButton 
+                icon={<Trophy size={16} />} 
+                label={`Rewards`} 
+                active={activeTab === 'rewards'}
+                onClick={() => handleTabChange('rewards')}
+              />
+            )}
             <TabButton
               active={activeTab === 'account'}
               onClick={() => handleTabChange('account')}
-              icon={<Phone size={15} />}
+              icon={<User size={16} />}
               label="Account"
             />
           </div>
@@ -399,9 +410,7 @@ export default function ProfileDashboardPage() {
               <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400">
                 {unusedCoupons.length} Available
               </span>
-            </div>
-
-            {unusedCoupons.length > 0 ? (
+            </div>            {unusedCoupons.length > 0 ? (
               <div className="grid gap-3.5">
                 {unusedCoupons.map((coupon) => (
                   <CouponCard
@@ -445,6 +454,61 @@ export default function ProfileDashboardPage() {
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* ────────── REWARDS TAB ────────── */}
+        {activeTab === 'rewards' && rewards && (
+          <div className="space-y-4 animate-fadeIn">
+            <div>
+              <h2 className="text-lg font-bold text-gray-900 dark:text-white">Rewards History</h2>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Track your earned and redeemed points</p>
+            </div>
+            
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden">
+              <div className="p-4 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">Current Balance</p>
+                  <p className="text-2xl font-extrabold text-purple-600 dark:text-purple-400 mt-1">{rewards.balance} pts</p>
+                </div>
+                <div className="w-12 h-12 rounded-xl bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center text-purple-600 dark:text-purple-400">
+                  <Trophy size={24} />
+                </div>
+              </div>
+              
+              <div className="divide-y divide-gray-100 dark:divide-slate-800">
+                {rewards.transactions.length > 0 ? (
+                  rewards.transactions.map((tx, idx) => (
+                    <div key={idx} className="p-4 flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-gray-900 dark:text-white">
+                          {tx.type === 'earn' ? 'Earned points' 
+                           : tx.type === 'redeem' ? 'Redeemed points' 
+                           : tx.type === 'cancel_refund' ? 'Refunded from Cancelled Order'
+                           : tx.type === 'cancel_revoke' ? 'Revoked from Cancelled Order'
+                           : 'Points adjusted'}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-0.5">{formatDate(tx.created_at)}</p>
+                        {tx.note && <p className="text-xs text-gray-400 mt-0.5 italic">{tx.note}</p>}
+                      </div>
+                      <div className={`text-sm font-bold ${
+                        tx.delta > 0 
+                          ? 'text-emerald-600 dark:text-emerald-400' 
+                          : tx.type === 'cancel_revoke' || tx.type === 'redeem'
+                            ? 'text-gray-500 dark:text-gray-400'
+                            : 'text-gray-900 dark:text-white'
+                      }`}>
+                        {tx.delta > 0 ? '+' : ''}{tx.delta}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="p-8 text-center text-gray-500 text-sm">
+                    No reward history yet
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         )}
 

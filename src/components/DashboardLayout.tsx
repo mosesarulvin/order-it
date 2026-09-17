@@ -20,7 +20,10 @@ import {
   Copy,
   Check,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Gift,
+  Ticket,
+  UserCog
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/contexts/AuthContext'
@@ -35,15 +38,16 @@ const getNavItems = (role: string | null, isSuperAdmin: boolean) => {
     { icon: LayoutDashboard, label: 'Dashboard', to: '/dashboard', roles: ['owner', 'manager'] },
     { icon: UtensilsCrossed, label: 'Menu', to: '/dashboard/menu', roles: ['owner', 'manager'] },
     { icon: Tag, label: 'Promotions', to: '/dashboard/promotions', roles: ['owner', 'manager'] },
+    { icon: Gift, label: 'Rewards', to: '/dashboard/rewards', roles: ['owner', 'manager'] },
     { icon: ClipboardList, label: 'Orders', to: '/dashboard/orders', roles: ['owner', 'manager', 'staff'] },
     { icon: ChefHat, label: 'Kitchen', to: '/dashboard/kitchen', roles: ['owner', 'manager', 'staff'] },
     { icon: UserPlus, label: 'Walk-in', to: '/dashboard/walkin', roles: ['owner', 'manager', 'staff'] },
     { icon: Package, label: 'Stock', to: '/dashboard/stock', roles: ['owner', 'manager'] },
-    { icon: Tag, label: 'Coupons', to: '/dashboard/coupons', roles: ['owner', 'manager'] },
+    { icon: Ticket, label: 'Coupons', to: '/dashboard/coupons', roles: ['owner', 'manager'] },
     { icon: Users, label: 'Customers', to: '/dashboard/customers', roles: ['owner', 'manager'] },
     { icon: Star, label: 'Reviews', to: '/dashboard/reviews', roles: ['owner', 'manager'] },
     { icon: QrCode, label: 'QR Code', to: '/dashboard/qr', roles: ['owner', 'manager'] },
-    { icon: Users, label: 'Staff', to: '/dashboard/staff', roles: ['owner'] },
+    { icon: UserCog, label: 'Staff', to: '/dashboard/staff', roles: ['owner'] },
     { icon: Settings, label: 'Settings', to: '/dashboard/settings', roles: ['owner'] },
   ]
   

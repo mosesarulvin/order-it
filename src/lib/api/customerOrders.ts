@@ -59,6 +59,26 @@ export interface CustomerOrderSummary {
   }[]
 }
 
+export interface CustomerRewards {
+  program: {
+    shop_id: string;
+    is_enabled: boolean;
+    earn_rate: number;
+    redeem_rate: number;
+    min_redeem_points: number;
+    points_expiry_months: number | null;
+  } | null;
+  balance: number;
+  total_earned: number;
+  transactions: {
+    delta: number;
+    type: string;
+    note: string;
+    created_at: string;
+    order_id: string | null;
+  }[];
+}
+
 // ── Cart → RPC payload ─────────────────────────────────────────────────────
 
 export function cartToPayload(items: CartItem[]): unknown[] {
@@ -136,6 +156,7 @@ export async function placeCustomerOrder(input: {
   notes:         string | null
   couponCode:    string | null
   isAnonymous:   boolean
+  pointsToRedeem?: number
 }): Promise<PlacedOrder> {
   const { data, error } = await supabase.rpc('place_customer_order', {
     p_shop_id:        input.shopId,
@@ -146,6 +167,7 @@ export async function placeCustomerOrder(input: {
     p_notes:          input.notes,
     p_coupon_code:    input.couponCode,
     p_is_anonymous:   input.isAnonymous,
+    p_points_to_redeem: input.pointsToRedeem || 0,
   })
   if (error) throw error
   return data as PlacedOrder
@@ -233,4 +255,19 @@ function extractCode(err: unknown): string {
     if (typeof c === 'string') return c
   }
   return ''
+}
+
+/**
+ * Fetches the customer's reward points balance and history.
+ */
+export async function fetchCustomerRewards(sessionToken: string): Promise<CustomerRewards | null> {
+  const { data, error } = await supabase.rpc('get_customer_rewards', {
+    p_session_token: sessionToken,
+  })
+
+  if (error) {
+    if (error.code === '42501') return null // Session expired
+    throw error
+  }
+  return data as CustomerRewards
 }

@@ -6,6 +6,7 @@ import toast from 'react-hot-toast'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Input } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { Toggle } from '@/components/ui/Toggle'
 import { convertToWebP } from '@/lib/utils'
 import type { Promotion, MenuCategory, MenuItem } from '@/types'
@@ -23,6 +24,11 @@ export default function PromotionsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingPromotion, setEditingPromotion] = useState<Promotion | null>(null)
   const [uploading, setUploading] = useState(false)
+
+  // Delete modal state
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   // Form state
   const [title, setTitle] = useState('')
@@ -190,15 +196,24 @@ export default function PromotionsPage() {
     }
   }
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this promotion?')) return
+  const handleDelete = (id: string) => {
+    setDeletingId(id)
+    setDeleteModalOpen(true)
+  }
+
+  const confirmDelete = async () => {
+    if (!deletingId) return
+    setIsDeleting(true)
     try {
-      const { error } = await supabase.from('promotions').delete().eq('id', id)
+      const { error } = await supabase.from('promotions').delete().eq('id', deletingId)
       if (error) throw error
       toast.success('Promotion deleted')
+      setDeleteModalOpen(false)
       fetchData()
     } catch (error: any) {
       toast.error('Failed to delete promotion')
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -506,6 +521,17 @@ export default function PromotionsPage() {
           </div>
         </form>
       </Modal>
+
+      <ConfirmDialog
+        open={deleteModalOpen}
+        onClose={() => setDeleteModalOpen(false)}
+        onConfirm={confirmDelete}
+        title="Delete Promotion"
+        description="Are you sure you want to delete this promotion? This action cannot be undone."
+        confirmText="Delete"
+        isDanger={true}
+        loading={isDeleting}
+      />
     </div>
   )
 }

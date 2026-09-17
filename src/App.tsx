@@ -15,6 +15,7 @@ const QRCodePage = lazy(() => import('@/pages/dashboard/QRCodePage'))
 const SettingsPage = lazy(() => import('@/pages/dashboard/SettingsPage'))
 const StockPage = lazy(() => import('@/pages/dashboard/StockPage'))
 const CouponsPage = lazy(() => import('@/pages/dashboard/CouponsPage'))
+const RewardsPage = lazy(() => import('@/pages/dashboard/RewardsPage'))
 const ReviewsPage = lazy(() => import('@/pages/dashboard/ReviewsPage'))
 const WalkInPage = lazy(() => import('@/pages/dashboard/WalkInPage'))
 const CustomersPage = lazy(() => import('@/pages/dashboard/CustomersPage'))
@@ -140,6 +141,7 @@ export default function App() {
         <Route path="/dashboard/stock" element={<ProtectedRoute><DashboardLayout><StockPage /></DashboardLayout></ProtectedRoute>} />
         <Route path="/dashboard/coupons" element={<ProtectedRoute><DashboardLayout><CouponsPage /></DashboardLayout></ProtectedRoute>} />
         <Route path="/dashboard/promotions" element={<ProtectedRoute><DashboardLayout><PromotionsPage /></DashboardLayout></ProtectedRoute>} />
+        <Route path="/dashboard/rewards" element={<ProtectedRoute><DashboardLayout><RewardsPage /></DashboardLayout></ProtectedRoute>} />
         <Route path="/dashboard/reviews" element={<ProtectedRoute><DashboardLayout><ReviewsPage /></DashboardLayout></ProtectedRoute>} />
         <Route path="/dashboard/customers" element={<ProtectedRoute><DashboardLayout><CustomersPage /></DashboardLayout></ProtectedRoute>} />
         <Route path="/dashboard/walkin" element={<ProtectedRoute><DashboardLayout><WalkInPage /></DashboardLayout></ProtectedRoute>} />

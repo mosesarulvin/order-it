@@ -8,7 +8,7 @@ import { formatCurrency } from '@/lib/utils'
 import { useCartStore } from '@/store/cartStore'
 import { Button } from '@/components/ui/Button'
 import { getSessionToken, getCachedIdentity } from '@/lib/customerSession'
-import { placeCustomerOrder, humanizeError } from '@/lib/api/customerOrders'
+import { placeCustomerOrder, fetchCustomerRewards, humanizeError, type CustomerRewards } from '@/lib/api/customerOrders'
 import type { PaymentMethod } from '@/types'
 import toast from 'react-hot-toast'
 
@@ -41,6 +41,10 @@ export default function CheckoutPage() {
   const [couponInput, setCouponInput] = useState('')
   const [appliedCoupon, setAppliedCoupon] = useState<CouponPreview | null>(null)
   const [couponLoading, setCouponLoading] = useState(false)
+  
+  const [rewards, setRewards] = useState<CustomerRewards | null>(null)
+  const [usePoints, setUsePoints] = useState(false)
+
   const orderPlacedRef = useRef(false)
 
   const identity = slug ? getCachedIdentity(slug) : null
@@ -69,8 +73,15 @@ export default function CheckoutPage() {
         }
         setShopLoaded(true)
       })
+
+    if (sessionToken) {
+      fetchCustomerRewards(sessionToken).then((res) => {
+        if (!cancelled && res) setRewards(res)
+      })
+    }
+
     return () => { cancelled = true }
-  }, [slug])
+  }, [slug, sessionToken])
 
   // If the shop has disabled online ordering, bounce the customer back to the menu.
   useEffect(() => {
@@ -111,12 +122,36 @@ export default function CheckoutPage() {
     [subtotal, packingCharge, taxPercent],
   )
   const discountAmount  = useMemo(() => {
-    if (!appliedCoupon) return 0
-    return appliedCoupon.type === 'percentage'
-      ? Math.round((subtotal + packingCharge) * appliedCoupon.value) / 100
-      : Math.min(appliedCoupon.value, subtotal + packingCharge)
+    let amt = 0
+    if (appliedCoupon) {
+      amt += appliedCoupon.type === 'percentage'
+        ? Math.round((subtotal + packingCharge) * appliedCoupon.value) / 100
+        : Math.min(appliedCoupon.value, subtotal + packingCharge)
+    }
+    return amt
   }, [appliedCoupon, subtotal, packingCharge])
-  const total = Math.max(0, subtotal + packingCharge + taxAmount - discountAmount)
+
+  // Points redemption calculation (Max points usable is limited by order total minus other discounts)
+  const { maxPointsUsable, pointsDiscount } = useMemo(() => {
+    if (!rewards?.program?.is_enabled || !usePoints) return { maxPointsUsable: 0, pointsDiscount: 0 }
+    if (rewards.balance < rewards.program.min_redeem_points) return { maxPointsUsable: 0, pointsDiscount: 0 }
+    
+    const prePointsTotal = Math.max(0, subtotal + packingCharge + taxAmount - discountAmount)
+    const redeemRate = rewards.program.redeem_rate || 10
+    
+    // How many points needed to cover the entire prePointsTotal?
+    const pointsToCoverTotal = prePointsTotal * redeemRate
+    
+    // We can only use up to our balance, and up to the order total
+    const pointsToUse = Math.min(rewards.balance, pointsToCoverTotal)
+    
+    return {
+      maxPointsUsable: Math.floor(pointsToUse),
+      pointsDiscount: Math.floor(pointsToUse) / redeemRate
+    }
+  }, [rewards, usePoints, subtotal, packingCharge, taxAmount, discountAmount])
+
+  const total = Math.max(0, subtotal + packingCharge + taxAmount - discountAmount - pointsDiscount)
 
   const applyCoupon = async () => {
     const code = couponInput.trim().toUpperCase()
@@ -163,6 +198,7 @@ export default function CheckoutPage() {
         notes:         notes.trim() || null,
         couponCode:    appliedCoupon?.code ?? null,
         isAnonymous:  false,
+        pointsToRedeem: usePoints ? maxPointsUsable : 0,
       })
 
       orderPlacedRef.current = true
@@ -330,10 +366,41 @@ export default function CheckoutPage() {
                 <span>−{formatCurrency(discountAmount)}</span>
               </div>
             )}
+            {pointsDiscount > 0 && (
+              <div className="flex justify-between text-sm text-green-600 dark:text-green-400 font-medium mt-1">
+                <span>Points Redeemed ({maxPointsUsable} pts)</span>
+                <span>−{formatCurrency(pointsDiscount)}</span>
+              </div>
+            )}
             <div className="flex justify-between font-bold text-gray-900 dark:text-white pt-1 border-t border-gray-200 dark:border-slate-600">
-              <span>Total</span><span className="text-brand-accent dark:text-brand-primary">{formatCurrency(total)}</span>
+              <span>Total Amount</span><span className="text-brand-accent dark:text-brand-primary">{formatCurrency(total)}</span>
             </div>
           </div>
+
+          {/* Rewards Points */}
+          {rewards?.program?.is_enabled && rewards.balance > 0 && rewards.balance >= (rewards.program.min_redeem_points || 100) && (
+            <div className="px-4 py-3 border-t border-gray-100 dark:border-slate-700 bg-white dark:bg-slate-900 flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                  <span className="w-5 h-5 rounded-full bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center text-orange-600 dark:text-orange-400">
+                    🏆
+                  </span>
+                  Use Points
+                </h3>
+                <p className="text-xs text-gray-500 mt-1">Balance: {rewards.balance} pts</p>
+              </div>
+              <button
+                onClick={() => setUsePoints(!usePoints)}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  usePoints ? 'bg-orange-500' : 'bg-gray-200 dark:bg-slate-700'
+                }`}
+              >
+                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  usePoints ? 'translate-x-6' : 'translate-x-1'
+                }`} />
+              </button>
+            </div>
+          )}
 
           {/* Coupon */}
           {shop?.coupons_enabled && (
