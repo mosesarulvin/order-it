@@ -23,6 +23,7 @@ export const Default: Story = {
   args: {
     checked: false,
     disabled: false,
+    onChange: () => {},
   },
   play: async ({ canvas }) => {
     // We can't query by role "switch" unless Toggle uses it. We'll just verify the component renders.
@@ -34,6 +35,7 @@ export const Default: Story = {
 export const Checked: Story = {
   args: {
     checked: true,
+    onChange: () => {},
   },
 };
 
@@ -41,6 +43,7 @@ export const Disabled: Story = {
   args: {
     checked: false,
     disabled: true,
+    onChange: () => {},
   },
 };
 
@@ -48,5 +51,6 @@ export const CheckedAndDisabled: Story = {
   args: {
     checked: true,
     disabled: true,
+    onChange: () => {},
   },
 };

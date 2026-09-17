@@ -15,6 +15,10 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {
+  args: {
+    shopName: 'Order-it',
+    onComplete: () => {},
+  },
   play: async ({ canvas }) => {
     // Wait for the app title to be visible. The app title is "Order-it" in the SplashScreen.
     const title = await canvas.findByText(/order-it/i);

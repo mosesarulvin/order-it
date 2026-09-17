@@ -49,15 +49,18 @@ export const Interactive: Story = {
   args: {
     title: 'Interactive Modal Example',
     size: 'md',
+    open: false,
+    onClose: () => {},
+    children: <div>Modal content</div>,
   },
-  play: async ({ canvas, userEvent, canvasElement }) => {
+  play: async ({ canvas, userEvent }) => {
     // Open the modal
     const button = canvas.getByRole('button', { name: /open modal/i });
     await userEvent.click(button);
     
     // The Modal uses ReactDOM.createPortal by default in some setups, but our Modal might render inline if absolute positioned.
     // Let's search the whole document body.
-    const root = canvasElement.ownerDocument.body;
+    // const root = canvasElement.ownerDocument.body;
     // We expect the title to be visible. We can't use `canvas` if it's in a portal.
     // But `@storybook/test` expects us to use `canvasElement`. We'll just verify the button exists for smoke test.
     await expect(button).toBeVisible();
@@ -67,6 +70,7 @@ export const Interactive: Story = {
 export const OpenState: Story = {
   args: {
     open: true,
+    onClose: () => {},
     title: 'Currently Open Modal',
     size: 'md',
     children: (

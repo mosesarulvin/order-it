@@ -6,7 +6,7 @@ import {
   Phone, Mail,
   Gift, ArrowRight, Clock,
   Copy, Check, Receipt, Cake, FileText,
-  Trophy, ArrowUpRight, ArrowDownRight, Ticket, User
+  Trophy, Ticket, User
 } from 'lucide-react'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { useCustomerOrderNotifications } from '@/hooks/useCustomerOrderNotifications'

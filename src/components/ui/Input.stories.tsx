@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react';
 import { Input } from './Input';
-import { Mail, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { expect } from 'storybook/test';
 
 const meta = {

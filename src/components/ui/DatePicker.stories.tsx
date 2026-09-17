@@ -32,6 +32,8 @@ export const Default: Story = {
   render: (args) => <DatePickerWrapper {...args} />,
   args: {
     label: 'Select Event Date',
+    value: undefined,
+    onChange: () => {},
   },
   play: async ({ canvas, userEvent }) => {
     // Wait for the button
@@ -50,5 +52,7 @@ export const WithError: Story = {
   args: {
     label: 'Expiry Date',
     error: 'Date cannot be in the past.',
+    value: undefined,
+    onChange: () => {},
   },
 };

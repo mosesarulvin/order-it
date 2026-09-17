@@ -1,22 +1,13 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
-import { Plus, Minus, Search, History } from 'lucide-react'
+import { Search } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Input } from '@/components/ui/Input'
 import { Toggle } from '@/components/ui/Toggle'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
-
-interface RewardProgram {
-  shop_id: string;
-  is_enabled: boolean;
-  earn_rate: number;
-  redeem_rate: number;
-  min_redeem_points: number;
-  points_expiry_months: number | null;
-}
 
 interface CustomerPoints {
   profile_id: string;
@@ -27,21 +18,12 @@ interface CustomerPoints {
   total_redeemed: number;
 }
 
-interface PointsTransaction {
-  id: string;
-  delta: number;
-  type: string;
-  note: string;
-  created_at: string;
-}
-
 export default function RewardsPage() {
   const { shop } = useAuth()
   const [activeTab, setActiveTab] = useState<'settings' | 'customers'>('settings')
   
   // Program Settings
   const [loading, setLoading] = useState(true)
-  const [program, setProgram] = useState<RewardProgram | null>(null)
   const [saving, setSaving] = useState(false)
 
   // Form State
@@ -83,7 +65,6 @@ export default function RewardsPage() {
       if (error) throw error
       
       if (data) {
-        setProgram(data)
         setIsEnabled(data.is_enabled)
         setEarnRate(data.earn_rate.toString())
         setRedeemRate(data.redeem_rate.toString())

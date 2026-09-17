@@ -55,7 +55,7 @@ export const CustomReason: Story = {
     
     // Type in textarea
     const textarea = await canvas.findByPlaceholderText(/describe the reason/i);
-    await userEvent.type(textarea, 'Customer called and cancelled', { delay: 10 });
+    await userEvent.type(textarea, 'Customer called and cancelled');
     
     const submitBtn = await canvas.findByRole('button', { name: /cancel order/i });
     await expect(submitBtn).toBeEnabled();
