@@ -410,7 +410,7 @@ export default function OrdersPage() {
         </div>
 
         {/* Payment Method Filter */}
-        <div className="relative">
+        {/* <div className="relative">
           <button
             onClick={() => setPaymentMethodDropdownOpen(!paymentMethodDropdownOpen)}
             className="flex items-center gap-2 h-10 px-4 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-gray-700 dark:text-gray-200 hover:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-100 dark:focus:ring-orange-900/50"
@@ -435,10 +435,10 @@ export default function OrdersPage() {
               </div>
             </>
           )}
-        </div>
+        </div> */}
 
         {/* Order Type Filter */}
-        <div className="relative">
+        {/* <div className="relative">
           <button
             onClick={() => setOrderTypeDropdownOpen(!orderTypeDropdownOpen)}
             className="flex items-center gap-2 h-10 px-4 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-gray-700 dark:text-gray-200 hover:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-100 dark:focus:ring-orange-900/50"
@@ -463,7 +463,8 @@ export default function OrdersPage() {
               </div>
             </>
           )}
-        </div>
+        </div> */}
+        
         {/* Date Range Filter */}
         <div className="relative">
           <button

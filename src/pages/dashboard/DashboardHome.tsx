@@ -1,11 +1,10 @@
-import { useEffect, useRef, useState, useMemo, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import {
   TrendingUp,
   ArrowRight,
   Flame,
   Package,
-  Star,
   Zap,
   BarChart3,
   PieChart as PieChartIcon,
@@ -13,8 +12,6 @@ import {
 } from 'lucide-react'
 import {
   ResponsiveContainer,
-  AreaChart,
-  Area,
   BarChart,
   Bar,
   PieChart,
@@ -32,10 +29,10 @@ import { Card, CardContent } from '@/components/ui/Card'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { useDebouncedCallback } from '@/hooks/useDebouncedCallback'
 import { captureException } from '@/lib/observability'
-import type { MenuItem, DashboardStats } from '@/types'
+import type { MenuItem } from '@/types'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 
-type TimeRange = 'hourly' | '7days' | '30days'
+type TimeRange = 'daily' | 'weekly' | 'monthly'
 
 interface ChartPoint {
   label: string
@@ -44,39 +41,58 @@ interface ChartPoint {
 }
 
 interface AnalyticsData {
+  periodRevenue: number
+  revenueGrowth: number
   aov: number
   completionRate: number
-  yesterdayRevenue: number
-  revenueGrowth: number
-  avgRating: number
-  totalReviews: number
-  hourlyData: ChartPoint[]
-  sevenDaysData: ChartPoint[]
-  thirtyDaysData: ChartPoint[]
+  totalOrders: number
+  chartData: ChartPoint[]
   topItems: { name: string; quantity: number; revenue: number }[]
   orderSourceSplit: { name: string; value: number; color: string }[]
   paymentSplit: { name: string; value: number; color: string }[]
 }
 
+// Current period is the selected range ending now; previous period is the equivalent range right before it (for growth comparison).
+function getPeriodBoundaries(timeRange: TimeRange, now: Date = new Date()) {
+  if (timeRange === 'daily') {
+    const currentStart = new Date(now)
+    currentStart.setHours(0, 0, 0, 0)
+    const previousStart = new Date(currentStart)
+    previousStart.setDate(previousStart.getDate() - 1)
+    return { currentStart, previousStart }
+  }
+  const rangeDays = timeRange === 'weekly' ? 7 : 30
+  const currentStart = new Date(now)
+  currentStart.setDate(currentStart.getDate() - rangeDays)
+  const previousStart = new Date(currentStart)
+  previousStart.setDate(previousStart.getDate() - rangeDays)
+  return { currentStart, previousStart }
+}
+
 export default function DashboardHome() {
   const { shop } = useAuth()
-  const [stats, setStats] = useState<DashboardStats | null>(null)
   const [lowStockItems, setLowStockItems] = useState<MenuItem[]>([])
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null)
-  const [timeRange, setTimeRange] = useState<TimeRange>('7days')
+  const [timeRange, setTimeRange] = useState<TimeRange>('weekly')
   const [loading, setLoading] = useState(true)
   const channelRef = useRef<RealtimeChannel | null>(null)
+  const fetchDataRef = useRef<(() => Promise<void>) | undefined>(undefined)
 
+  // Re-fetch whenever the selected range changes so the query window matches what's displayed.
   useEffect(() => {
     if (!shop) return
     fetchData()
-    const refresh = () => { fetchData() }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shop, timeRange])
+
+  useEffect(() => {
+    if (!shop) return
     const channel = supabase
       .channel(`dashboard-${shop.id}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'orders', filter: `shop_id=eq.${shop.id}` },
-        () => { debouncedRefresh(refresh) },
+        () => { debouncedRefresh(() => fetchDataRef.current?.()) },
       )
       .subscribe()
     channelRef.current = channel
@@ -88,11 +104,9 @@ export default function DashboardHome() {
     if (!shop) return
     setLoading(true)
 
-    const windowStart = new Date()
-    windowStart.setDate(windowStart.getDate() - (timeRange === '30days' ? 30 : 7))
+    const { previousStart } = getPeriodBoundaries(timeRange)
 
-    const [statsRes, lowStockRes, ordersRes, reviewsRes] = await Promise.all([
-      supabase.rpc('get_dashboard_stats', { p_shop_id: shop.id }),
+    const [lowStockRes, ordersRes] = await Promise.all([
       supabase
         .from('menu_items')
         .select('id, shop_id, name, stock_quantity, low_stock_threshold, is_available, price')
@@ -102,49 +116,40 @@ export default function DashboardHome() {
         .from('orders')
         .select('id, total, status, payment_method, order_source, created_at, order_items(name, quantity, subtotal)')
         .eq('shop_id', shop.id)
-        .gte('created_at', windowStart.toISOString())
+        .gte('created_at', previousStart.toISOString())
         .order('created_at', { ascending: true })
         .limit(2000),
-      supabase
-        .from('reviews')
-        .select('rating')
-        .eq('shop_id', shop.id)
-        .limit(500),
     ])
 
-    if (statsRes.error) captureException(statsRes.error, { where: 'DashboardHome.stats' })
-    if (statsRes.data) setStats(statsRes.data as DashboardStats)
+    if (ordersRes.error) captureException(ordersRes.error, { where: 'DashboardHome.orders' })
 
     const allTracked = (lowStockRes.data as MenuItem[]) || []
     setLowStockItems(allTracked.filter((i) => i.stock_quantity !== null && i.stock_quantity <= i.low_stock_threshold))
 
-    const ordersList  = ordersRes.data  || []
-    const reviewsList = reviewsRes.data || []
-    setAnalytics(processAnalytics(ordersList, reviewsList))
+    const ordersList = ordersRes.data || []
+    setAnalytics(processAnalytics(ordersList, timeRange))
     setLoading(false)
   }, [shop, timeRange])
 
+  useEffect(() => { fetchDataRef.current = fetchData }, [fetchData])
+
   const debouncedRefresh = useDebouncedCallback((run: () => void) => run(), 400)
 
-  const chartData = useMemo(() => {
-    if (!analytics) return []
-    if (timeRange === 'hourly') return analytics.hourlyData
-    if (timeRange === '30days') return analytics.thirtyDaysData
-    return analytics.sevenDaysData
-  }, [analytics, timeRange])
+  const periodLabel = timeRange === 'daily' ? "Today's" : timeRange === 'weekly' ? "This Week's" : "This Month's"
+  const comparisonLabel = timeRange === 'daily' ? 'vs yesterday' : timeRange === 'weekly' ? 'vs last week' : 'vs last month'
 
   const statCards = [
     {
-      label: "Today's Revenue",
-      value: formatCurrency(stats?.today_revenue || 0),
+      label: `${periodLabel} Revenue`,
+      value: formatCurrency(analytics?.periodRevenue || 0),
       icon: TrendingUp,
       color: 'text-green-600 dark:text-green-400',
       bg: 'bg-green-50 dark:bg-green-900/30',
       sub: analytics ? (
         <span className={`inline-flex items-center font-medium ${analytics.revenueGrowth >= 0 ? 'text-green-600' : 'text-red-500'}`}>
-          {analytics.revenueGrowth >= 0 ? '↑' : '↓'} {Math.abs(analytics.revenueGrowth)}% vs yesterday
+          {analytics.revenueGrowth >= 0 ? '↑' : '↓'} {Math.abs(analytics.revenueGrowth)}% {comparisonLabel}
         </span>
-      ) : 'Paid orders today',
+      ) : 'Paid orders',
     },
     {
       label: 'Average Order Value',
@@ -160,24 +165,16 @@ export default function DashboardHome() {
       icon: Percent,
       color: 'text-purple-600 dark:text-purple-400',
       bg: 'bg-purple-50 dark:bg-purple-900/30',
-      sub: `${stats?.total_orders || 0} total orders`,
-    },
-    {
-      label: 'Customer Rating (CSAT)',
-      value: analytics?.avgRating ? `${analytics.avgRating.toFixed(1)} / 5.0` : 'N/A',
-      icon: Star,
-      color: 'text-amber-500 dark:text-amber-400',
-      bg: 'bg-amber-50 dark:bg-amber-900/30',
-      sub: analytics?.totalReviews ? `Based on ${analytics.totalReviews} reviews` : 'No reviews yet',
+      sub: `${analytics?.totalOrders || 0} total orders`,
     },
   ]
 
   return (
     <div className="space-y-6">
       {/* Stat cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {loading
-          ? Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-28 rounded-2xl" />)
+          ? Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-28 rounded-2xl" />)
           : statCards.map(({ label, value, icon: Icon, color, bg, sub }) => (
               <Card key={label}>
                 <CardContent className="p-5">
@@ -206,34 +203,34 @@ export default function DashboardHome() {
             {/* Time range selector */}
             <div className="flex items-center gap-1 bg-gray-100 dark:bg-slate-800 p-1 rounded-xl">
               <button
-                onClick={() => setTimeRange('hourly')}
+                onClick={() => setTimeRange('daily')}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                  timeRange === 'hourly'
+                  timeRange === 'daily'
                     ? 'bg-white dark:bg-slate-700 text-orange-600 dark:text-orange-400 shadow-sm'
-                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900'
+                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
                 }`}
               >
-                Today (Rush Hours)
+                Daily
               </button>
               <button
-                onClick={() => setTimeRange('7days')}
+                onClick={() => setTimeRange('weekly')}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                  timeRange === '7days'
+                  timeRange === 'weekly'
                     ? 'bg-white dark:bg-slate-700 text-orange-600 dark:text-orange-400 shadow-sm'
-                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900'
+                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
                 }`}
               >
-                Last 7 Days
+                Weekly
               </button>
               <button
-                onClick={() => setTimeRange('30days')}
+                onClick={() => setTimeRange('monthly')}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                  timeRange === '30days'
+                  timeRange === 'monthly'
                     ? 'bg-white dark:bg-slate-700 text-orange-600 dark:text-orange-400 shadow-sm'
-                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900'
+                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
                 }`}
               >
-                Last 30 Days
+                Monthly
               </button>
             </div>
           </div>
@@ -243,11 +240,11 @@ export default function DashboardHome() {
           ) : (
             <div className="h-72 w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <BarChart data={analytics?.chartData || []} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <defs>
                     <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#f97316" stopOpacity={0.4} />
-                      <stop offset="95%" stopColor="#f97316" stopOpacity={0} />
+                      <stop offset="5%" stopColor="#f97316" stopOpacity={0.9} />
+                      <stop offset="95%" stopColor="#f97316" stopOpacity={0.3} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" opacity={0.5} />
@@ -259,13 +256,14 @@ export default function DashboardHome() {
                   />
                   <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748B' }} />
                   <Tooltip
+                    cursor={{ fill: '#f97316', fillOpacity: 0.08 }}
                     content={({ active, payload }) => {
                       if (active && payload && payload.length) {
                         const data = payload[0].payload
                         return (
                           <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 p-3 rounded-xl shadow-xl text-xs space-y-1">
                             <p className="font-semibold text-gray-500 dark:text-slate-400">
-                              {timeRange === 'hourly' ? `Time: ${data.label}` : `Date: ${data.label}`}
+                              {timeRange === 'daily' ? `Time: ${data.label}` : `Date: ${data.label}`}
                             </p>
                             <p className="text-orange-600 dark:text-orange-400 font-bold">Revenue: {formatCurrency(data.revenue)}</p>
                             <p className="text-gray-600 dark:text-gray-300">Orders: {data.orders}</p>
@@ -275,15 +273,8 @@ export default function DashboardHome() {
                       return null
                     }}
                   />
-                  <Area
-                    type="monotone"
-                    dataKey="revenue"
-                    stroke="#f97316"
-                    strokeWidth={3}
-                    fillOpacity={1}
-                    fill="url(#colorRevenue)"
-                  />
-                </AreaChart>
+                  <Bar dataKey="revenue" fill="url(#colorRevenue)" radius={[6, 6, 0, 0]} maxBarSize={40} />
+                </BarChart>
               </ResponsiveContainer>
             </div>
           )}
@@ -474,121 +465,86 @@ export default function DashboardHome() {
   )
 }
 
-function processAnalytics(orders: any[], reviews: any[]): AnalyticsData {
-  const totalOrdersCount = orders.length
-  const completedOrders = orders.filter((o) => o.status === 'completed' || o.status === 'ready')
-  const completedCount = completedOrders.length
-  const totalRevenue = completedOrders.reduce((sum, o) => sum + (o.total || 0), 0)
+function isCompleted(o: any) {
+  return o.status === 'completed' || o.status === 'ready'
+}
 
-  // Average Order Value
-  const aov = completedCount > 0 ? Math.round((totalRevenue / completedCount) * 100) / 100 : 0
+// Builds the revenue/orders chart bins for the selected period: hourly for daily, daily buckets for weekly/monthly.
+function buildChartData(currentOrders: any[], timeRange: TimeRange): ChartPoint[] {
+  if (timeRange === 'daily') {
+    const hourlyMap: Record<number, { revenue: number; orders: number }> = {}
+    for (let i = 8; i <= 22; i++) hourlyMap[i] = { revenue: 0, orders: 0 }
 
-  // Completion Rate
-  const completionRate = totalOrdersCount > 0 ? Math.round((completedCount / totalOrdersCount) * 100) : 100
+    currentOrders.forEach((o) => {
+      const hour = new Date(o.created_at).getHours()
+      if (hourlyMap[hour] === undefined) return
+      if (isCompleted(o)) hourlyMap[hour].revenue += o.total || 0
+      hourlyMap[hour].orders += 1
+    })
 
-  // Today & Yesterday revenue growth
-  const todayStr = new Date().toISOString().split('T')[0]
-  const yesterday = new Date()
-  yesterday.setDate(yesterday.getDate() - 1)
-  const yesterdayStr = yesterday.toISOString().split('T')[0]
+    return Object.keys(hourlyMap).map((hKey) => {
+      const h = parseInt(hKey, 10)
+      const ampm = h >= 12 ? 'PM' : 'AM'
+      const displayHour = h % 12 === 0 ? 12 : h % 12
+      return {
+        label: `${displayHour} ${ampm}`,
+        revenue: Math.round(hourlyMap[h].revenue),
+        orders: hourlyMap[h].orders,
+      }
+    })
+  }
 
-  let todayRev = 0
-  let yesterdayRev = 0
+  const days = timeRange === 'weekly' ? 7 : 30
+  const dayMap = new Map<string, { revenue: number; orders: number }>()
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date()
+    d.setDate(d.getDate() - i)
+    dayMap.set(d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), { revenue: 0, orders: 0 })
+  }
 
-  orders.forEach((o) => {
-    if (o.status !== 'completed' && o.status !== 'ready') return
-    const dateStr = new Date(o.created_at).toISOString().split('T')[0]
-    if (dateStr === todayStr) todayRev += o.total || 0
-    if (dateStr === yesterdayStr) yesterdayRev += o.total || 0
+  currentOrders.forEach((o) => {
+    const key = new Date(o.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    const bucket = dayMap.get(key)
+    if (!bucket) return
+    if (isCompleted(o)) bucket.revenue += o.total || 0
+    bucket.orders += 1
   })
 
+  return Array.from(dayMap.entries()).map(([label, v]) => ({
+    label,
+    revenue: Math.round(v.revenue),
+    orders: v.orders,
+  }))
+}
+
+function processAnalytics(orders: any[], timeRange: TimeRange): AnalyticsData {
+  const { currentStart, previousStart } = getPeriodBoundaries(timeRange)
+
+  const currentOrders = orders.filter((o) => new Date(o.created_at) >= currentStart)
+  const previousOrders = orders.filter((o) => {
+    const d = new Date(o.created_at)
+    return d >= previousStart && d < currentStart
+  })
+
+  const completedCurrent = currentOrders.filter(isCompleted)
+  const periodRevenue = completedCurrent.reduce((sum, o) => sum + (o.total || 0), 0)
+  const previousRevenue = previousOrders.filter(isCompleted).reduce((sum, o) => sum + (o.total || 0), 0)
+
+  const aov = completedCurrent.length > 0 ? Math.round((periodRevenue / completedCurrent.length) * 100) / 100 : 0
+  const completionRate = currentOrders.length > 0 ? Math.round((completedCurrent.length / currentOrders.length) * 100) : 100
+
   let revenueGrowth = 0
-  if (yesterdayRev > 0) {
-    revenueGrowth = Math.round(((todayRev - yesterdayRev) / yesterdayRev) * 100)
-  } else if (todayRev > 0) {
+  if (previousRevenue > 0) {
+    revenueGrowth = Math.round(((periodRevenue - previousRevenue) / previousRevenue) * 100)
+  } else if (periodRevenue > 0) {
     revenueGrowth = 100
   }
 
-  // Hourly Data (Today 00:00 to 23:00)
-  const hourlyMap: Record<number, { revenue: number; orders: number }> = {}
-  for (let i = 8; i <= 22; i++) {
-    hourlyMap[i] = { revenue: 0, orders: 0 }
-  }
-
-  orders.forEach((o) => {
-    const oDate = new Date(o.created_at)
-    if (oDate.toISOString().split('T')[0] === todayStr) {
-      const hour = oDate.getHours()
-      if (hourlyMap[hour] !== undefined) {
-        if (o.status === 'completed' || o.status === 'ready') {
-          hourlyMap[hour].revenue += o.total || 0
-        }
-        hourlyMap[hour].orders += 1
-      }
-    }
-  })
-
-  const hourlyData = Object.keys(hourlyMap).map((hKey) => {
-    const h = parseInt(hKey, 10)
-    const ampm = h >= 12 ? 'PM' : 'AM'
-    const displayHour = h % 12 === 0 ? 12 : h % 12
-    return {
-      label: `${displayHour} ${ampm}`,
-      revenue: Math.round(hourlyMap[h].revenue),
-      orders: hourlyMap[h].orders,
-    }
-  })
-
-  // 7 Days & 30 Days Data
-  const last7DaysMap: Record<string, { revenue: number; orders: number }> = {}
-  const last30DaysMap: Record<string, { revenue: number; orders: number }> = {}
-
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date()
-    d.setDate(d.getDate() - i)
-    const key = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-    last7DaysMap[key] = { revenue: 0, orders: 0 }
-  }
-
-  for (let i = 29; i >= 0; i--) {
-    const d = new Date()
-    d.setDate(d.getDate() - i)
-    const key = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-    last30DaysMap[key] = { revenue: 0, orders: 0 }
-  }
-
-  orders.forEach((o) => {
-    const key = new Date(o.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-    if (last7DaysMap[key]) {
-      if (o.status === 'completed' || o.status === 'ready') {
-        last7DaysMap[key].revenue += o.total || 0
-      }
-      last7DaysMap[key].orders += 1
-    }
-    if (last30DaysMap[key]) {
-      if (o.status === 'completed' || o.status === 'ready') {
-        last30DaysMap[key].revenue += o.total || 0
-      }
-      last30DaysMap[key].orders += 1
-    }
-  })
-
-  const sevenDaysData = Object.keys(last7DaysMap).map((date) => ({
-    label: date,
-    revenue: Math.round(last7DaysMap[date].revenue),
-    orders: last7DaysMap[date].orders,
-  }))
-
-  const thirtyDaysData = Object.keys(last30DaysMap).map((date) => ({
-    label: date,
-    revenue: Math.round(last30DaysMap[date].revenue),
-    orders: last30DaysMap[date].orders,
-  }))
+  const chartData = buildChartData(currentOrders, timeRange)
 
   // Top Items
   const itemsMap: Record<string, { name: string; quantity: number; revenue: number }> = {}
-  orders.forEach((o) => {
-    if (o.status !== 'completed' && o.status !== 'ready') return
+  completedCurrent.forEach((o) => {
     const items = o.order_items || []
     items.forEach((item: any) => {
       if (!itemsMap[item.name]) {
@@ -609,7 +565,7 @@ function processAnalytics(orders: any[], reviews: any[]): AnalyticsData {
   let upiCount = 0
   let cashCount = 0
 
-  orders.forEach((o) => {
+  currentOrders.forEach((o) => {
     if (o.order_source === 'walkin') walkinCount++
     else qrCount++
 
@@ -627,20 +583,13 @@ function processAnalytics(orders: any[], reviews: any[]): AnalyticsData {
     { name: 'Cash', value: cashCount, color: '#a855f7' },
   ]
 
-  // Rating CSAT
-  const totalReviews = reviews.length
-  const avgRating = totalReviews > 0 ? reviews.reduce((sum, r) => sum + r.rating, 0) / totalReviews : 0
-
   return {
+    periodRevenue: Math.round(periodRevenue),
+    revenueGrowth,
     aov,
     completionRate,
-    yesterdayRevenue: Math.round(yesterdayRev),
-    revenueGrowth,
-    avgRating,
-    totalReviews,
-    hourlyData,
-    sevenDaysData,
-    thirtyDaysData,
+    totalOrders: currentOrders.length,
+    chartData,
     topItems,
     orderSourceSplit,
     paymentSplit,

@@ -4,7 +4,7 @@ import {
   ArrowLeft, Minus, Plus, Trash2, ChevronRight, ShoppingBag, Clock, Tag, X,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, getReopenLabel } from '@/lib/utils'
 import { useCartStore } from '@/store/cartStore'
 import { Button } from '@/components/ui/Button'
 import { getSessionToken, getCachedIdentity } from '@/lib/customerSession'
@@ -229,6 +229,11 @@ export default function CheckoutPage() {
           </div>
           <h2 className="text-xl font-bold text-gray-900 dark:text-white">Shop is currently closed</h2>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Orders are not being accepted right now.</p>
+          {getReopenLabel(shop.auto_schedule_enabled, shop.auto_open_time, shop.auto_close_time) && (
+            <p className="text-sm font-medium text-brand-primary mt-2">
+              {getReopenLabel(shop.auto_schedule_enabled, shop.auto_open_time, shop.auto_close_time)}
+            </p>
+          )}
           <button onClick={() => navigate(`/order/${slug}`)} className="mt-4 text-brand-accent dark:text-brand-primary font-medium">
             ← Back to menu
           </button>

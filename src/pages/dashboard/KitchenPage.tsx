@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, formatElapsedTime } from '@/lib/utils'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { OrderCardSkeleton } from '@/components/ui/Skeleton'
@@ -407,7 +407,7 @@ export default function KitchenPage() {
                             </div>
                             <div className="text-right flex flex-col items-end gap-1">
                               <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${isUrgent ? 'bg-red-100 text-red-700' : 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-400'}`}>
-                                {elapsed}m ago
+                                {formatElapsedTime(order.created_at)}
                               </span>
                               {/* Drag hint */}
                               <span className="text-[10px] text-gray-300 dark:text-slate-600 select-none">⠿ drag</span>

@@ -53,6 +53,36 @@ type ItemForm = z.infer<typeof itemSchema>
 
 
 
+function SortableItem({ item, children }: { item: MenuItem; children: (dragHandle: React.ReactNode) => React.ReactNode }) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: item.id })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 1 : 0,
+    position: 'relative' as const,
+  }
+
+  const dragHandle = (
+    <div {...attributes} {...listeners} className="cursor-grab hover:text-brand-primary active:cursor-grabbing text-gray-300 flex-shrink-0 touch-none">
+      <GripVertical size={14} />
+    </div>
+  )
+
+  return (
+    <div ref={setNodeRef} style={style} className={isDragging ? 'opacity-50 ring-2 ring-brand-primary rounded-xl' : ''}>
+      {children(dragHandle)}
+    </div>
+  )
+}
+
 function SortableCategory({ 
   cat, 
   items,
@@ -64,7 +94,8 @@ function SortableCategory({
   openAddItem,
   toggleAvailable,
   openEditItem,
-  deleteItem
+  deleteItem,
+  onItemDragEnd,
 }: {
   cat: MenuCategory;
   items: MenuItem[];
@@ -77,9 +108,19 @@ function SortableCategory({
   toggleAvailable: (item: MenuItem) => void;
   openEditItem: (item: MenuItem) => void;
   deleteItem: (id: string) => void;
+  onItemDragEnd: (categoryId: string, event: DragEndEvent) => void;
 }) {
   const catItems = items.filter((i) => i.category_id === cat.id)
   const visibleItems = filteredItems ?? catItems
+  // Reordering only makes sense against the full, unfiltered item list
+  const canReorderItems = !filteredItems
+
+  const itemSensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  )
   
   const {
     attributes,
@@ -142,6 +183,67 @@ function SortableCategory({
               <div className="py-8 text-center text-gray-400 dark:text-gray-500 text-sm">
                 No items match your search.
               </div>
+            ) : canReorderItems ? (
+              <DndContext
+                sensors={itemSensors}
+                collisionDetection={closestCenter}
+                onDragEnd={(event) => onItemDragEnd(cat.id, event)}
+              >
+                <SortableContext items={visibleItems.map((i) => i.id)} strategy={verticalListSortingStrategy}>
+                  <div className="divide-y divide-gray-50 dark:divide-slate-800">
+                    {visibleItems.map((item) => (
+                      <SortableItem key={item.id} item={item}>
+                        {(dragHandle) => (
+                          <div className="flex items-center gap-3 p-4 hover:bg-gray-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                            {dragHandle}
+                            {item.image_url ? (
+                              <img src={item.image_url} alt={item.name} className="w-14 h-14 rounded-xl object-cover flex-shrink-0 border border-gray-100" />
+                            ) : (
+                              <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-orange-50 to-amber-50 flex items-center justify-center flex-shrink-0 border border-orange-100">
+                                <span className="text-2xl">🍽️</span>
+                              </div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-medium text-gray-900 dark:text-white text-sm">{item.name}</span>
+                                {item.rating_count && item.rating_count > 0 ? <Badge variant="outline" className="border-amber-400 text-amber-600 bg-amber-50 dark:border-amber-500/50 dark:text-amber-500 dark:bg-amber-900/20"><Star size={10} className="mr-1 fill-amber-400" />{Number(item.rating_average).toFixed(1)} ({item.rating_count})</Badge> : null}
+                                {item.is_special && <Badge variant="outline" className="border-yellow-400 text-yellow-600 dark:border-yellow-500/50 dark:text-yellow-500 bg-yellow-50 dark:bg-yellow-900/20"><Star size={10} className="mr-1 fill-yellow-400" />Special</Badge>}
+                                {item.unit && <Badge variant="outline" className="text-gray-500 bg-gray-50 border-gray-200 dark:bg-slate-800 dark:border-slate-700 dark:text-gray-400">{item.unit}</Badge>}
+                                {item.variants && item.variants.length > 0 && <Badge variant="outline" className="text-gray-500 bg-gray-50 border-gray-200 dark:bg-slate-800 dark:border-slate-700 dark:text-gray-400">{item.variants.length} Sizes</Badge>}
+                                {item.is_category_image && <Badge variant="outline" className="text-brand-primary border-brand-primary dark:text-brand-primary dark:border-brand-primary"><ImageIcon size={10} className="mr-1" />Category image</Badge>}
+                                {item.is_instant && <Badge variant="orange"><Zap size={10} className="mr-0.5" />Instant</Badge>}
+                                {item.is_popular && <Badge variant="orange">Popular</Badge>}
+                                {item.is_display_only && <Badge variant="outline" className="border-blue-400 text-blue-600 bg-blue-50 dark:border-blue-500/50 dark:text-blue-400 dark:bg-blue-900/20">Display-only</Badge>}
+                                {!item.is_available && <Badge variant="default">Unavailable</Badge>}
+                                {item.customization_groups?.length > 0 && <Badge variant="default"><Settings2 size={10} className="mr-0.5" />{item.customization_groups.length} options</Badge>}
+                                {item.stock_quantity !== null && (
+                                  <Badge variant={item.stock_quantity === 0 ? 'default' : item.stock_quantity <= item.low_stock_threshold ? 'orange' : 'default'}>
+                                    <Package size={10} className="mr-0.5" />
+                                    {item.stock_quantity === 0 ? 'Out of stock' : `Stock: ${item.stock_quantity}`}
+                                  </Badge>
+                                )}</div>
+                              {item.description && <p className="text-xs text-gray-400 mt-0.5 truncate max-w-xs">{item.description}</p>}
+                              <p className="text-sm font-semibold text-orange-600 mt-1">{formatCurrency(item.price)}</p>
+                            </div>
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              <Toggle
+                                checked={item.is_available}
+                                onChange={() => toggleAvailable(item)}
+                              />
+                              <Button variant="ghost" size="icon" onClick={() => openEditItem(item)}>
+                                <Pencil size={14} />
+                              </Button>
+                              <Button variant="ghost" size="icon" onClick={() => deleteItem(item.id)} className="hover:text-red-500">
+                                <Trash2 size={14} />
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </SortableItem>
+                    ))}
+                  </div>
+                </SortableContext>
+              </DndContext>
             ) : (
               <div className="divide-y divide-gray-50 dark:divide-slate-800">
                 {visibleItems.map((item) => (
@@ -535,6 +637,31 @@ export default function MenuPage() {
     }
   }
 
+  const handleItemDragEnd = (categoryId: string, event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+
+    setItems((prev) => {
+      const catItems = prev.filter((i) => i.category_id === categoryId)
+      const otherItems = prev.filter((i) => i.category_id !== categoryId)
+      const oldIndex = catItems.findIndex((i) => i.id === active.id)
+      const newIndex = catItems.findIndex((i) => i.id === over.id)
+      const newCatOrder = arrayMove(catItems, oldIndex, newIndex)
+
+      const updates = newCatOrder.map((item, index) => ({ id: item.id, sort_order: index }))
+      Promise.all(updates.map((update) =>
+        supabase.from('menu_items')
+          .update({ sort_order: update.sort_order })
+          .eq('id', update.id)
+      )).catch((err) => {
+        console.error('Failed to update item sort order', err)
+        toast.error('Failed to save new item order')
+      })
+
+      return [...otherItems, ...newCatOrder]
+    })
+  }
+
   const toggleCat = (id: string) => {
     setExpandedCats((prev) => {
       const n = new Set(prev)
@@ -632,6 +759,7 @@ export default function MenuPage() {
                   toggleAvailable={toggleAvailable}
                   openEditItem={openEditItem}
                   deleteItem={deleteItem}
+                  onItemDragEnd={handleItemDragEnd}
                 />
               ))}
               {q && filteredCategories.length === 0 && (

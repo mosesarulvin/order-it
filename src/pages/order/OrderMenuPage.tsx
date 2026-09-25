@@ -2,7 +2,7 @@ import { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Plus, Minus, Search, Star, Clock, ChevronLeft, ChevronRight, UtensilsCrossed, X as XIcon, User, Flame, Eye, ArrowUp } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, getReopenLabel } from '@/lib/utils'
 import { useCartStore } from '@/store/cartStore'
 import { useCustomerOrderNotifications } from '@/hooks/useCustomerOrderNotifications'
 import { ThemeToggle } from '@/components/ThemeToggle'
@@ -353,6 +353,7 @@ export default function OrderMenuPage() {
   }
 
   if (!loading && shop && !effectiveIsOpen && instantItems.length === 0) {
+    const reopenLabel = getReopenLabel(shop.auto_schedule_enabled, shop.auto_open_time, shop.auto_close_time)
     return (
       <div className="min-h-screen flex items-center justify-center p-8 text-center bg-gray-50 dark:bg-slate-950">
         <div>
@@ -360,8 +361,14 @@ export default function OrderMenuPage() {
             <Clock size={40} className="text-brand-primary" />
           </div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{shop.name}</h2>
-          <p className="text-lg text-gray-500 dark:text-gray-400 mt-2">Sorry, we're currently closed</p>
-          <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">Please visit us again later!</p>
+          <p className="text-lg text-gray-500 dark:text-gray-400 mt-2">We're closed for now, but the kitchen's warming up 👨‍🍳</p>
+          {reopenLabel ? (
+            <p className="text-sm font-medium text-brand-primary mt-2">
+              {reopenLabel.replace('Opens ', "We'll be back ")}
+            </p>
+          ) : (
+            <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">Please check back again soon!</p>
+          )}
         </div>
       </div>
     )

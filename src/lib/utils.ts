@@ -31,6 +31,59 @@ export function formatTime(date: string): string {
   }).format(new Date(date))
 }
 
+// Scales the unit (minutes -> hours -> days -> months -> years) as elapsed time grows.
+export function formatElapsedTime(createdAt: string): string {
+  const created = new Date(createdAt)
+  const now = new Date()
+  const totalMinutes = Math.max(0, Math.floor((now.getTime() - created.getTime()) / 60000))
+  if (totalMinutes < 60) return `${totalMinutes}m ago`
+  const totalHours = Math.floor(totalMinutes / 60)
+  if (totalHours < 24) return `${totalHours}h ${totalMinutes % 60}m ago`
+
+  // Calendar-aware diff so real month lengths (28/29/30/31 days) decide the month/year rollover.
+  let months = (now.getFullYear() - created.getFullYear()) * 12 + (now.getMonth() - created.getMonth())
+  if (now.getDate() < created.getDate()) months--
+
+  if (months < 1) {
+    const days = Math.floor(totalHours / 24)
+    return `${days}d ${totalHours % 24}h ago`
+  }
+
+  const monthMark = new Date(created)
+  monthMark.setMonth(monthMark.getMonth() + months)
+  const remainderDays = Math.max(0, Math.floor((now.getTime() - monthMark.getTime()) / 86400000))
+
+  if (months < 12) return `${months}mo ${remainderDays}d ago`
+
+  const years = Math.floor(months / 12)
+  return `${years}y ${months % 12}mo ago`
+}
+
+// Formats a "HH:mm" (24-hour) string, e.g. from a <input type="time">, into 12-hour "h:mm AM/PM".
+export function formatTimeString(hhmm: string | null | undefined): string {
+  if (!hhmm) return ''
+  const [hStr, mStr] = hhmm.split(':')
+  const h = parseInt(hStr, 10)
+  const m = parseInt(mStr, 10)
+  if (Number.isNaN(h) || Number.isNaN(m)) return ''
+  const ampm = h >= 12 ? 'PM' : 'AM'
+  const displayHour = h % 12 === 0 ? 12 : h % 12
+  return `${displayHour}:${String(m).padStart(2, '0')} ${ampm}`
+}
+
+// Tells a closed customer when the shop's auto-schedule will next bring it online.
+export function getReopenLabel(
+  autoScheduleEnabled: boolean | null | undefined,
+  autoOpenTime: string | null | undefined,
+  autoCloseTime: string | null | undefined,
+): string {
+  if (!autoScheduleEnabled || !autoOpenTime || !autoCloseTime) return ''
+  const now = new Date()
+  const hhmm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+  const opensToday = hhmm < autoOpenTime
+  return `Opens ${opensToday ? 'today' : 'tomorrow'} at ${formatTimeString(autoOpenTime)}`
+}
+
 export function generateOrderNumber(): string {
   const now = new Date()
   const prefix = 'ORD'

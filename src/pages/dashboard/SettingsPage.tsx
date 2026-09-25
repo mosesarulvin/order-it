@@ -10,8 +10,9 @@ import { Input, Textarea } from '@/components/ui/Input'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Toggle } from '@/components/ui/Toggle'
 import { Modal } from '@/components/ui/Modal'
+import { TimePicker } from '@/components/ui/TimePicker'
 import toast from 'react-hot-toast'
-import { convertToWebP } from '@/lib/utils'
+import { convertToWebP, formatTimeString } from '@/lib/utils'
 
 const schema = z.object({
   name: z.string().min(2, 'Shop name is required'),
@@ -281,17 +282,19 @@ export default function SettingsPage() {
               </div>
               {autoSchedule && (
                 <div className="grid grid-cols-2 gap-3 pl-2 border-l-2 border-orange-200 dark:border-orange-800">
-                  <Input
+                  <TimePicker
                     label="Open at"
-                    type="time"
-                    {...register('auto_open_time')}
+                    value={watch('auto_open_time')}
+                    onChange={(v) => setValue('auto_open_time', v)}
                   />
-                  <Input
+                  <TimePicker
                     label="Close at"
-                    type="time"
-                    {...register('auto_close_time')}
+                    value={watch('auto_close_time')}
+                    onChange={(v) => setValue('auto_close_time', v)}
                   />
-                  <p className="col-span-2 text-xs text-gray-400 dark:text-gray-500">The shop will automatically go online/offline at these times each day.</p>
+                  <p className="col-span-2 text-xs text-gray-400 dark:text-gray-500">
+                    The shop will automatically go online at {formatTimeString(watch('auto_open_time')) || '—'} and offline at {formatTimeString(watch('auto_close_time')) || '—'} each day.
+                  </p>
                 </div>
               )}
             </div>
