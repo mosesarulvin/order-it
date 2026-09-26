@@ -13,13 +13,16 @@ import type { PaymentMethod } from '@/types'
 import toast from 'react-hot-toast'
 
 interface ShopMeta {
-  id:               string
-  tax_percent:      number
-  is_open:          boolean
-  ordering_enabled: boolean
-  coupons_enabled:  boolean
-  accepts_upi:      boolean
-  accepts_cash:     boolean
+  id:                   string
+  tax_percent:          number
+  is_open:              boolean
+  ordering_enabled:     boolean
+  coupons_enabled:      boolean
+  accepts_upi:          boolean
+  accepts_cash:         boolean
+  auto_schedule_enabled: boolean
+  auto_open_time:       string | null
+  auto_close_time:      string | null
 }
 
 interface CouponPreview {
@@ -61,7 +64,7 @@ export default function CheckoutPage() {
     let cancelled = false
     supabase
       .from('shops')
-      .select('id, tax_percent, is_open, ordering_enabled, coupons_enabled, accepts_upi, accepts_cash')
+      .select('id, tax_percent, is_open, ordering_enabled, coupons_enabled, accepts_upi, accepts_cash, auto_schedule_enabled, auto_open_time, auto_close_time')
       .eq('slug', slug)
       .single()
       .then(({ data }) => {

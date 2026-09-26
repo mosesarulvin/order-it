@@ -43,8 +43,6 @@ export default function OrdersPage() {
   
   const [statusDropdownOpen, setStatusDropdownOpen] = useState(false)
   const [paymentStatusDropdownOpen, setPaymentStatusDropdownOpen] = useState(false)
-  const [paymentMethodDropdownOpen, setPaymentMethodDropdownOpen] = useState(false)
-  const [orderTypeDropdownOpen, setOrderTypeDropdownOpen] = useState(false)
   const [dateDropdownOpen, setDateDropdownOpen] = useState(false)
   const [pageSize, setPageSize] = useState<number>(10)
   const [totalCount, setTotalCount] = useState<number>(0)
