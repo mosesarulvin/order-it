@@ -68,6 +68,14 @@
     scroll-behavior: smooth;
   }
 
+  /* Recharts draws a focus ring around SVG elements/bars/sectors on click; suppress it. */
+  .recharts-wrapper svg:focus,
+  .recharts-surface:focus,
+  .recharts-wrapper *:focus,
+  .recharts-wrapper *:focus-visible {
+    outline: none !important;
+  }
+
   body {
     background-color: #f9fafb;
     color: #111827;

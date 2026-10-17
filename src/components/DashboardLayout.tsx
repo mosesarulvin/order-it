@@ -345,11 +345,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           >
             <Menu size={20} />
           </button>
-          <div className="hidden lg:block">
-            <h1 className="text-sm font-semibold text-gray-900 dark:text-white">
-              {navItems.find((n) => n.to === location.pathname)?.label || 'Dashboard'}
-            </h1>
-          </div>
           <div className="flex items-center gap-3 ml-auto">
             <ThemeToggle />
           

@@ -8,7 +8,11 @@ import {
   Zap,
   BarChart3,
   PieChart as PieChartIcon,
-  Percent
+  Percent,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  RefreshCw,
 } from 'lucide-react'
 import {
   ResponsiveContainer,
@@ -26,19 +30,28 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { formatCurrency } from '@/lib/utils'
 import { Card, CardContent } from '@/components/ui/Card'
+import { Button } from '@/components/ui/Button'
 import { Skeleton } from '@/components/ui/Skeleton'
+import { DatePicker } from '@/components/ui/DatePicker'
 import { useDebouncedCallback } from '@/hooks/useDebouncedCallback'
 import { captureException } from '@/lib/observability'
+import {
+  addCalendarDays,
+  buildChartData,
+  formatMonthLabel,
+  formatMonthShortLabel,
+  formatWeekRangeLabel,
+  getPeriodBoundaries,
+  localDateKey,
+  monthKey,
+  startOfWeekLocal,
+  type ChartPoint,
+  type PeriodBoundaries,
+  type PeriodSelection,
+  type TimeRange,
+} from '@/lib/dashboardPeriods'
 import type { MenuItem } from '@/types'
 import type { RealtimeChannel } from '@supabase/supabase-js'
-
-type TimeRange = 'daily' | 'weekly' | 'monthly'
-
-interface ChartPoint {
-  label: string
-  revenue: number
-  orders: number
-}
 
 interface AnalyticsData {
   periodRevenue: number
@@ -52,21 +65,45 @@ interface AnalyticsData {
   paymentSplit: { name: string; value: number; color: string }[]
 }
 
-// Current period is the selected range ending now; previous period is the equivalent range right before it (for growth comparison).
-function getPeriodBoundaries(timeRange: TimeRange, now: Date = new Date()) {
-  if (timeRange === 'daily') {
-    const currentStart = new Date(now)
-    currentStart.setHours(0, 0, 0, 0)
-    const previousStart = new Date(currentStart)
-    previousStart.setDate(previousStart.getDate() - 1)
-    return { currentStart, previousStart }
+interface AnalyticsOrder {
+  created_at: string
+  total: number | null
+  status: string
+  payment_method: string | null
+  order_source: string | null
+  order_items: { name: string; quantity: number | null; subtotal: number | null }[] | null
+}
+
+async function fetchPeriodOrders(shopId: string, boundaries: PeriodBoundaries): Promise<{ data: AnalyticsOrder[]; error: unknown }> {
+  const pageSize = 1000
+  const orders: AnalyticsOrder[] = []
+
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await supabase
+      .from('orders')
+      .select('id, total, status, payment_method, order_source, created_at, order_items(name, quantity, subtotal)')
+      .eq('shop_id', shopId)
+      .gte('created_at', boundaries.previousStart.toISOString())
+      .lt('created_at', boundaries.currentEnd.toISOString())
+          .order('created_at', { ascending: true })
+          .order('id', { ascending: true })
+      .range(offset, offset + pageSize - 1)
+
+    if (error) return { data: [], error }
+    const page = (data ?? []) as AnalyticsOrder[]
+    orders.push(...page)
+    if (page.length < pageSize) return { data: orders, error: null }
   }
-  const rangeDays = timeRange === 'weekly' ? 7 : 30
-  const currentStart = new Date(now)
-  currentStart.setDate(currentStart.getDate() - rangeDays)
-  const previousStart = new Date(currentStart)
-  previousStart.setDate(previousStart.getDate() - rangeDays)
-  return { currentStart, previousStart }
+}
+
+function monthKeyToDate(key: string): Date {
+  const [year, month] = key.split('-').map(Number)
+  return new Date(year, month - 1, 1)
+}
+
+function shiftMonthKey(key: string, amount: number): string {
+  const [year, month] = key.split('-').map(Number)
+  return monthKey(new Date(year, month - 1 + amount, 1))
 }
 
 export default function DashboardHome() {
@@ -74,16 +111,48 @@ export default function DashboardHome() {
   const [lowStockItems, setLowStockItems] = useState<MenuItem[]>([])
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null)
   const [timeRange, setTimeRange] = useState<TimeRange>('weekly')
+  const [selectedDailyDate, setSelectedDailyDate] = useState(() => localDateKey(new Date()))
+  const [selectedWeekStart, setSelectedWeekStart] = useState(() => localDateKey(startOfWeekLocal(new Date())))
+  const [selectedMonth, setSelectedMonth] = useState(() => monthKey(new Date()))
+  const [selectedYear, setSelectedYear] = useState(() => new Date().getFullYear())
+  const [openPicker, setOpenPicker] = useState<TimeRange | null>(null)
   const [loading, setLoading] = useState(true)
   const channelRef = useRef<RealtimeChannel | null>(null)
   const fetchDataRef = useRef<(() => Promise<void>) | undefined>(undefined)
+  const rangeSelectorRef = useRef<HTMLDivElement>(null)
+
+  // Dismiss any open period dropdown on outside click or Escape; ignore clicks inside
+  // the DatePicker's portaled calendar, which Radix renders outside this subtree.
+  useEffect(() => {
+    if (!openPicker) return
+    const closeAll = () => setOpenPicker(null)
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as Element
+      if (target.closest('[data-radix-popper-content-wrapper]')) return
+      if (rangeSelectorRef.current && !rangeSelectorRef.current.contains(target)) closeAll()
+    }
+    const handleKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') closeAll() }
+    document.addEventListener('mousedown', handlePointerDown)
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [openPicker])
+
+  // A first click on a preset switches to it with its sensible default; a second click while
+  // already active toggles that preset's own picker, so switching tabs never pops a dropdown open.
+  const selectPeriod = (range: Exclude<TimeRange, 'custom'>) => {
+    if (timeRange !== range) { setTimeRange(range); setOpenPicker(null); return }
+    setOpenPicker((current) => (current === range ? null : range))
+  }
 
   // Re-fetch whenever the selected range changes so the query window matches what's displayed.
   useEffect(() => {
     if (!shop) return
     fetchData()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shop, timeRange])
+  }, [shop, timeRange, selectedDailyDate, selectedWeekStart, selectedMonth, selectedYear])
 
   useEffect(() => {
     if (!shop) return
@@ -104,7 +173,21 @@ export default function DashboardHome() {
     if (!shop) return
     setLoading(true)
 
-    const { previousStart } = getPeriodBoundaries(timeRange)
+    const selection: PeriodSelection = {
+      dailyDate: selectedDailyDate,
+      weekStart: selectedWeekStart,
+      month: selectedMonth,
+      year: selectedYear,
+    }
+    let boundaries: PeriodBoundaries
+    try {
+      boundaries = getPeriodBoundaries(timeRange, new Date(), selection)
+    } catch (err) {
+      // An invalid/future selection shouldn't crash the dashboard; just skip this fetch.
+      captureException(err, { where: 'DashboardHome.getPeriodBoundaries' })
+      setLoading(false)
+      return
+    }
 
     const [lowStockRes, ordersRes] = await Promise.all([
       supabase
@@ -112,13 +195,7 @@ export default function DashboardHome() {
         .select('id, shop_id, name, stock_quantity, low_stock_threshold, is_available, price')
         .eq('shop_id', shop.id)
         .not('stock_quantity', 'is', null),
-      supabase
-        .from('orders')
-        .select('id, total, status, payment_method, order_source, created_at, order_items(name, quantity, subtotal)')
-        .eq('shop_id', shop.id)
-        .gte('created_at', previousStart.toISOString())
-        .order('created_at', { ascending: true })
-        .limit(2000),
+      fetchPeriodOrders(shop.id, boundaries),
     ])
 
     if (ordersRes.error) captureException(ordersRes.error, { where: 'DashboardHome.orders' })
@@ -126,17 +203,46 @@ export default function DashboardHome() {
     const allTracked = (lowStockRes.data as MenuItem[]) || []
     setLowStockItems(allTracked.filter((i) => i.stock_quantity !== null && i.stock_quantity <= i.low_stock_threshold))
 
-    const ordersList = ordersRes.data || []
-    setAnalytics(processAnalytics(ordersList, timeRange))
+    const ordersList = ordersRes.data
+    setAnalytics(processAnalytics(ordersList, boundaries))
     setLoading(false)
-  }, [shop, timeRange])
+  }, [shop, timeRange, selectedDailyDate, selectedWeekStart, selectedMonth, selectedYear])
 
   useEffect(() => { fetchDataRef.current = fetchData }, [fetchData])
 
   const debouncedRefresh = useDebouncedCallback((run: () => void) => run(), 400)
 
-  const periodLabel = timeRange === 'daily' ? "Today's" : timeRange === 'weekly' ? "This Week's" : "This Month's"
-  const comparisonLabel = timeRange === 'daily' ? 'vs yesterday' : timeRange === 'weekly' ? 'vs last week' : 'vs last month'
+  const today = new Date()
+  const todayKey = localDateKey(today)
+  const currentWeekKey = localDateKey(startOfWeekLocal(today))
+  const currentMonthKey = monthKey(today)
+  const currentYear = today.getFullYear()
+
+  const selectedDailyLabel = new Date(`${selectedDailyDate}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  const selectedDailyShortLabel = new Date(`${selectedDailyDate}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  const selectedWeekLabel = formatWeekRangeLabel(new Date(`${selectedWeekStart}T00:00:00`))
+  const selectedMonthDate = monthKeyToDate(selectedMonth)
+  const selectedMonthLabel = formatMonthLabel(selectedMonthDate)
+  const selectedMonthShortLabel = formatMonthShortLabel(selectedMonthDate)
+
+  const periodLabel = timeRange === 'daily'
+    ? (selectedDailyDate === todayKey ? "Today's" : selectedDailyLabel)
+    : timeRange === 'weekly'
+      ? (selectedWeekStart === currentWeekKey ? "This Week's" : selectedWeekLabel)
+      : timeRange === 'monthly'
+        ? (selectedMonth === currentMonthKey ? "This Month's" : selectedMonthLabel)
+        : timeRange === 'yearly'
+          ? (selectedYear === currentYear ? "This Year's" : String(selectedYear))
+          : 'Selected Period'
+  const comparisonLabel = timeRange === 'daily'
+    ? (selectedDailyDate === todayKey ? 'vs yesterday to now' : 'vs previous day')
+    : timeRange === 'weekly'
+      ? (selectedWeekStart === currentWeekKey ? 'vs last week to now' : 'vs previous week')
+      : timeRange === 'monthly'
+        ? (selectedMonth === currentMonthKey ? 'vs last month to date' : 'vs previous month')
+        : timeRange === 'yearly'
+          ? (selectedYear === currentYear ? 'vs last year to date' : 'vs previous year')
+          : 'vs previous period'
 
   const statCards = [
     {
@@ -171,6 +277,249 @@ export default function DashboardHome() {
 
   return (
     <div className="space-y-6">
+      {/* Page header */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Dashboard</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{shop?.name ? `${shop.name}'s performance overview` : "Your shop's performance overview"}</p>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Time range selector */}
+          <div ref={rangeSelectorRef} className="relative flex flex-wrap items-center gap-1 bg-gray-100 dark:bg-slate-800 p-1 rounded-xl">
+            <button
+              onClick={() => selectPeriod('daily')}
+              aria-haspopup="true"
+              aria-expanded={openPicker === 'daily'}
+              className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                timeRange === 'daily'
+                  ? 'bg-white dark:bg-slate-700 text-orange-600 dark:text-orange-400 shadow-sm'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+              }`}
+            >
+              {selectedDailyDate === todayKey ? 'Daily' : selectedDailyLabel}
+              <ChevronDown size={12} className={`transition-transform ${openPicker === 'daily' ? 'rotate-180' : ''}`} />
+            </button>
+            <button
+              onClick={() => selectPeriod('weekly')}
+              aria-haspopup="true"
+              aria-expanded={openPicker === 'weekly'}
+              className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                timeRange === 'weekly'
+                  ? 'bg-white dark:bg-slate-700 text-orange-600 dark:text-orange-400 shadow-sm'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+              }`}
+            >
+              {selectedWeekStart === currentWeekKey ? 'Weekly' : selectedWeekLabel}
+              <ChevronDown size={12} className={`transition-transform ${openPicker === 'weekly' ? 'rotate-180' : ''}`} />
+            </button>
+            <button
+              onClick={() => selectPeriod('monthly')}
+              aria-haspopup="true"
+              aria-expanded={openPicker === 'monthly'}
+              className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                timeRange === 'monthly'
+                  ? 'bg-white dark:bg-slate-700 text-orange-600 dark:text-orange-400 shadow-sm'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+              }`}
+            >
+              {selectedMonth === currentMonthKey ? 'Monthly' : selectedMonthShortLabel}
+              <ChevronDown size={12} className={`transition-transform ${openPicker === 'monthly' ? 'rotate-180' : ''}`} />
+            </button>
+            <button
+              onClick={() => selectPeriod('yearly')}
+              aria-haspopup="true"
+              aria-expanded={openPicker === 'yearly'}
+              className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${timeRange === 'yearly' ? 'bg-white dark:bg-slate-700 text-orange-600 dark:text-orange-400 shadow-sm' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`}
+            >
+              {selectedYear === currentYear ? 'Yearly' : String(selectedYear)}
+              <ChevronDown size={12} className={`transition-transform ${openPicker === 'yearly' ? 'rotate-180' : ''}`} />
+            </button>
+            {openPicker === 'daily' && (
+              <div className="absolute left-0 top-full mt-2 z-50 w-72 p-4 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl shadow-xl space-y-3">
+                <p className="text-xs font-semibold text-gray-700 dark:text-gray-300">Choose a date</p>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    aria-label="Previous day"
+                    onClick={() => setSelectedDailyDate(localDateKey(addCalendarDays(new Date(`${selectedDailyDate}T00:00:00`), -1)))}
+                    className="shrink-0 p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700"
+                  >
+                    <ChevronLeft size={16} />
+                  </button>
+                  <div className="flex-1 min-w-0">
+                    <DatePicker
+                      value={selectedDailyDate}
+                      displayLabel={selectedDailyShortLabel}
+                      hideClear
+                      onChange={(value) => {
+                        setSelectedDailyDate(value || todayKey)
+                        setTimeRange('daily')
+                        setOpenPicker(null)
+                      }}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    aria-label="Next day"
+                    disabled={selectedDailyDate === todayKey}
+                    onClick={() => setSelectedDailyDate(localDateKey(addCalendarDays(new Date(`${selectedDailyDate}T00:00:00`), 1)))}
+                    className="shrink-0 p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    <ChevronRight size={16} />
+                  </button>
+                </div>
+                {selectedDailyDate !== todayKey && (
+                  <button
+                    onClick={() => { setSelectedDailyDate(todayKey); setOpenPicker(null) }}
+                    className="w-full px-3 py-2 rounded-lg text-xs font-semibold text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-slate-700"
+                  >
+                    Today
+                  </button>
+                )}
+              </div>
+            )}
+            {openPicker === 'weekly' && (
+              <div className="absolute left-0 top-full mt-2 z-50 w-72 p-4 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl shadow-xl space-y-3">
+                <p className="text-xs font-semibold text-gray-700 dark:text-gray-300">Choose a week</p>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    aria-label="Previous week"
+                    onClick={() => setSelectedWeekStart(localDateKey(addCalendarDays(new Date(`${selectedWeekStart}T00:00:00`), -7)))}
+                    className="shrink-0 p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700"
+                  >
+                    <ChevronLeft size={16} />
+                  </button>
+                  <div className="flex-1 min-w-0">
+                    <DatePicker
+                      value={selectedWeekStart}
+                      displayLabel={selectedWeekLabel}
+                      hideClear
+                      onChange={(pickedDate) => {
+                        if (!pickedDate) return
+                        setSelectedWeekStart(localDateKey(startOfWeekLocal(new Date(`${pickedDate}T00:00:00`))))
+                        setTimeRange('weekly')
+                        setOpenPicker(null)
+                      }}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    aria-label="Next week"
+                    disabled={selectedWeekStart === currentWeekKey}
+                    onClick={() => setSelectedWeekStart(localDateKey(addCalendarDays(new Date(`${selectedWeekStart}T00:00:00`), 7)))}
+                    className="shrink-0 p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    <ChevronRight size={16} />
+                  </button>
+                </div>
+                {selectedWeekStart !== currentWeekKey && (
+                  <button
+                    onClick={() => { setSelectedWeekStart(currentWeekKey); setOpenPicker(null) }}
+                    className="w-full px-3 py-2 rounded-lg text-xs font-semibold text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-slate-700"
+                  >
+                    This week
+                  </button>
+                )}
+              </div>
+            )}
+            {openPicker === 'monthly' && (
+              <div className="absolute left-0 top-full mt-2 z-50 w-72 p-4 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl shadow-xl space-y-3">
+                <p className="text-xs font-semibold text-gray-700 dark:text-gray-300">Choose a month</p>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    aria-label="Previous month"
+                    onClick={() => setSelectedMonth(shiftMonthKey(selectedMonth, -1))}
+                    className="shrink-0 p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700"
+                  >
+                    <ChevronLeft size={16} />
+                  </button>
+                  <div className="flex-1 min-w-0">
+                    <DatePicker
+                      value={`${selectedMonth}-01`}
+                      displayLabel={selectedMonthLabel}
+                      hideClear
+                      onChange={(pickedDate) => {
+                        if (!pickedDate) return
+                        setSelectedMonth(monthKey(new Date(`${pickedDate}T00:00:00`)))
+                        setTimeRange('monthly')
+                        setOpenPicker(null)
+                      }}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    aria-label="Next month"
+                    disabled={selectedMonth === currentMonthKey}
+                    onClick={() => setSelectedMonth(shiftMonthKey(selectedMonth, 1))}
+                    className="shrink-0 p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    <ChevronRight size={16} />
+                  </button>
+                </div>
+                {selectedMonth !== currentMonthKey && (
+                  <button
+                    onClick={() => { setSelectedMonth(currentMonthKey); setOpenPicker(null) }}
+                    className="w-full px-3 py-2 rounded-lg text-xs font-semibold text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-slate-700"
+                  >
+                    This month
+                  </button>
+                )}
+              </div>
+            )}
+            {openPicker === 'yearly' && (
+              <div className="absolute left-0 top-full mt-2 z-50 w-72 p-4 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl shadow-xl space-y-3">
+                <p className="text-xs font-semibold text-gray-700 dark:text-gray-300">Choose a year</p>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    aria-label="Previous year"
+                    onClick={() => setSelectedYear((year) => year - 1)}
+                    className="shrink-0 p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700"
+                  >
+                    <ChevronLeft size={16} />
+                  </button>
+                  <div className="flex-1 min-w-0">
+                    <DatePicker
+                      value={`${selectedYear}-01-01`}
+                      displayLabel={String(selectedYear)}
+                      hideClear
+                      onChange={(pickedDate) => {
+                        if (!pickedDate) return
+                        setSelectedYear(new Date(`${pickedDate}T00:00:00`).getFullYear())
+                        setTimeRange('yearly')
+                        setOpenPicker(null)
+                      }}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    aria-label="Next year"
+                    disabled={selectedYear === currentYear}
+                    onClick={() => setSelectedYear((year) => year + 1)}
+                    className="shrink-0 p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    <ChevronRight size={16} />
+                  </button>
+                </div>
+                {selectedYear !== currentYear && (
+                  <button
+                    onClick={() => { setSelectedYear(currentYear); setOpenPicker(null) }}
+                    className="w-full px-3 py-2 rounded-lg text-xs font-semibold text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-slate-700"
+                  >
+                    This year
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+          <Button variant="outline" size="sm" onClick={fetchData} disabled={loading} className="gap-1.5 text-sm">
+            <RefreshCw size={15} className={loading ? 'animate-spin' : ''} /> Refresh
+          </Button>
+        </div>
+      </div>
+
       {/* Stat cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {loading
@@ -192,47 +541,12 @@ export default function DashboardHome() {
       {/* Main Revenue & Order Volume Chart */}
       <Card>
         <CardContent className="p-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-            <div>
-              <div className="flex items-center gap-2">
-                <BarChart3 className="text-orange-500" size={20} />
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white">Revenue & Sales Trends</h3>
-              </div>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Track financial growth and identify peak sales periods</p>
+          <div className="mb-6">
+            <div className="flex items-center gap-2">
+              <BarChart3 className="text-orange-500" size={20} />
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white">Revenue & Sales Trends</h3>
             </div>
-            {/* Time range selector */}
-            <div className="flex items-center gap-1 bg-gray-100 dark:bg-slate-800 p-1 rounded-xl">
-              <button
-                onClick={() => setTimeRange('daily')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                  timeRange === 'daily'
-                    ? 'bg-white dark:bg-slate-700 text-orange-600 dark:text-orange-400 shadow-sm'
-                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-                }`}
-              >
-                Daily
-              </button>
-              <button
-                onClick={() => setTimeRange('weekly')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                  timeRange === 'weekly'
-                    ? 'bg-white dark:bg-slate-700 text-orange-600 dark:text-orange-400 shadow-sm'
-                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-                }`}
-              >
-                Weekly
-              </button>
-              <button
-                onClick={() => setTimeRange('monthly')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                  timeRange === 'monthly'
-                    ? 'bg-white dark:bg-slate-700 text-orange-600 dark:text-orange-400 shadow-sm'
-                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-                }`}
-              >
-                Monthly
-              </button>
-            </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Track financial growth and identify peak sales periods</p>
           </div>
 
           {loading ? (
@@ -465,65 +779,20 @@ export default function DashboardHome() {
   )
 }
 
-function isCompleted(o: any) {
+function isCompleted(o: AnalyticsOrder) {
   return o.status === 'completed' || o.status === 'ready'
 }
 
-// Builds the revenue/orders chart bins for the selected period: hourly for daily, daily buckets for weekly/monthly.
-function buildChartData(currentOrders: any[], timeRange: TimeRange): ChartPoint[] {
-  if (timeRange === 'daily') {
-    const hourlyMap: Record<number, { revenue: number; orders: number }> = {}
-    for (let i = 8; i <= 22; i++) hourlyMap[i] = { revenue: 0, orders: 0 }
+function processAnalytics(orders: AnalyticsOrder[], boundaries: PeriodBoundaries): AnalyticsData {
+  const { currentStart, currentEnd, previousStart, previousEnd } = boundaries
 
-    currentOrders.forEach((o) => {
-      const hour = new Date(o.created_at).getHours()
-      if (hourlyMap[hour] === undefined) return
-      if (isCompleted(o)) hourlyMap[hour].revenue += o.total || 0
-      hourlyMap[hour].orders += 1
-    })
-
-    return Object.keys(hourlyMap).map((hKey) => {
-      const h = parseInt(hKey, 10)
-      const ampm = h >= 12 ? 'PM' : 'AM'
-      const displayHour = h % 12 === 0 ? 12 : h % 12
-      return {
-        label: `${displayHour} ${ampm}`,
-        revenue: Math.round(hourlyMap[h].revenue),
-        orders: hourlyMap[h].orders,
-      }
-    })
-  }
-
-  const days = timeRange === 'weekly' ? 7 : 30
-  const dayMap = new Map<string, { revenue: number; orders: number }>()
-  for (let i = days - 1; i >= 0; i--) {
-    const d = new Date()
-    d.setDate(d.getDate() - i)
-    dayMap.set(d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), { revenue: 0, orders: 0 })
-  }
-
-  currentOrders.forEach((o) => {
-    const key = new Date(o.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-    const bucket = dayMap.get(key)
-    if (!bucket) return
-    if (isCompleted(o)) bucket.revenue += o.total || 0
-    bucket.orders += 1
+  const currentOrders = orders.filter((o) => {
+    const createdAt = new Date(o.created_at)
+    return createdAt >= currentStart && createdAt < currentEnd
   })
-
-  return Array.from(dayMap.entries()).map(([label, v]) => ({
-    label,
-    revenue: Math.round(v.revenue),
-    orders: v.orders,
-  }))
-}
-
-function processAnalytics(orders: any[], timeRange: TimeRange): AnalyticsData {
-  const { currentStart, previousStart } = getPeriodBoundaries(timeRange)
-
-  const currentOrders = orders.filter((o) => new Date(o.created_at) >= currentStart)
   const previousOrders = orders.filter((o) => {
     const d = new Date(o.created_at)
-    return d >= previousStart && d < currentStart
+    return d >= previousStart && d < previousEnd
   })
 
   const completedCurrent = currentOrders.filter(isCompleted)
@@ -540,7 +809,7 @@ function processAnalytics(orders: any[], timeRange: TimeRange): AnalyticsData {
     revenueGrowth = 100
   }
 
-  const chartData = buildChartData(currentOrders, timeRange)
+  const chartData = buildChartData(currentOrders, boundaries)
 
   // Top Items
   const itemsMap: Record<string, { name: string; quantity: number; revenue: number }> = {}

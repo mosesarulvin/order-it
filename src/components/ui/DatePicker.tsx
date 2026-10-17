@@ -11,11 +11,18 @@ export interface DatePickerProps {
   placeholder?: string
   label?: string
   error?: string
+  /** Overrides the trigger text (e.g. a week range or month name) while the calendar still opens on the given value. */
+  displayLabel?: string
+  /** Suppresses the clear (X) button, for pickers that always need a value. */
+  hideClear?: boolean
 }
 
-export function DatePicker({ value, onChange, placeholder = 'Select date...', label, error }: DatePickerProps) {
+export function DatePicker({ value, onChange, placeholder = 'Select date...', label, error, displayLabel, hideClear }: DatePickerProps) {
   const [open, setOpen] = useState(false)
-  const dateValue = value ? new Date(value) : undefined
+  const dateParts = value?.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  const dateValue = dateParts
+    ? new Date(Number(dateParts[1]), Number(dateParts[2]) - 1, Number(dateParts[3]))
+    : value ? new Date(value) : undefined
 
   return (
     <div className="w-full">
@@ -29,14 +36,15 @@ export function DatePicker({ value, onChange, placeholder = 'Select date...', la
           <button
             type="button"
             className={`
-              w-full h-10 px-3 flex items-center gap-2 text-left rounded-xl border bg-white dark:bg-slate-900 text-sm text-gray-900 dark:text-white 
+              group w-full h-10 px-3 flex items-center gap-2 text-left rounded-xl border bg-white dark:bg-slate-900 text-sm text-gray-900 dark:text-white
+              hover:border-orange-300 dark:hover:border-orange-700
               focus:outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/30 transition-colors
               ${error ? 'border-red-500 focus:border-red-500' : 'border-gray-200 dark:border-slate-700'}
             `}
           >
-            <CalendarIcon size={16} className="text-gray-400 shrink-0" />
-            <span className="flex-1 truncate text-gray-600 dark:text-gray-300">{dateValue ? format(dateValue, 'PPP') : placeholder}</span>
-            {dateValue && (
+            <CalendarIcon size={16} className="text-gray-400 group-hover:text-orange-500 shrink-0" />
+            <span className="flex-1 truncate text-gray-600 dark:text-gray-300 group-hover:text-orange-600 dark:group-hover:text-orange-400">{displayLabel ?? (dateValue ? format(dateValue, 'PPP') : placeholder)}</span>
+            {!hideClear && dateValue && (
               <X 
                 size={14} 
                 className="ml-auto text-gray-400 hover:text-red-500 shrink-0" 
@@ -66,6 +74,7 @@ export function DatePicker({ value, onChange, placeholder = 'Select date...', la
             <DayPicker 
               mode="single"
               selected={dateValue}
+              disabled={{ after: new Date() }}
               onSelect={(date) => {
                 if (date) {
                   const tzOffset = date.getTimezoneOffset() * 60000;
