@@ -12,7 +12,7 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  RefreshCw,
+  RotateCcw,
 } from 'lucide-react'
 import {
   ResponsiveContainer,
@@ -140,12 +140,33 @@ export default function DashboardHome() {
     }
   }, [openPicker])
 
-  // A first click on a preset switches to it with its sensible default; a second click while
-  // already active toggles that preset's own picker, so switching tabs never pops a dropdown open.
-  const selectPeriod = (range: Exclude<TimeRange, 'custom'>) => {
-    if (timeRange !== range) { setTimeRange(range); setOpenPicker(null); return }
+  // A first click on a preset switches to it and resets that preset's own selection back to its
+  // current period, so switching tabs never leaves a stale drilled-down date/week/month/year behind.
+  // A second click while already active toggles that preset's own picker.
+  // Clicking the label text: just switch to that period (reset to current if changing tabs)
+  const selectPeriodLabel = (range: Exclude<TimeRange, 'custom'>) => {
+    const now = new Date()
+    if (range === 'daily') setSelectedDailyDate(localDateKey(now))
+    else if (range === 'weekly') setSelectedWeekStart(localDateKey(startOfWeekLocal(now)))
+    else if (range === 'monthly') setSelectedMonth(monthKey(now))
+    else setSelectedYear(now.getFullYear())
+    setTimeRange(range)
+    setOpenPicker(null)
+  }
+
+  // Clicking the chevron arrow: open/close the date picker for that period
+  const selectPeriodChevron = (range: Exclude<TimeRange, 'custom'>) => {
+    if (timeRange !== range) {
+      const now = new Date()
+      if (range === 'daily') setSelectedDailyDate(localDateKey(now))
+      else if (range === 'weekly') setSelectedWeekStart(localDateKey(startOfWeekLocal(now)))
+      else if (range === 'monthly') setSelectedMonth(monthKey(now))
+      else setSelectedYear(now.getFullYear())
+      setTimeRange(range)
+    }
     setOpenPicker((current) => (current === range ? null : range))
   }
+
 
   // Re-fetch whenever the selected range changes so the query window matches what's displayed.
   useEffect(() => {
@@ -189,28 +210,46 @@ export default function DashboardHome() {
       return
     }
 
-    const [lowStockRes, ordersRes] = await Promise.all([
-      supabase
-        .from('menu_items')
-        .select('id, shop_id, name, stock_quantity, low_stock_threshold, is_available, price')
-        .eq('shop_id', shop.id)
-        .not('stock_quantity', 'is', null),
-      fetchPeriodOrders(shop.id, boundaries),
-    ])
+    try {
+      const [lowStockRes, ordersRes] = await Promise.all([
+        supabase
+          .from('menu_items')
+          .select('id, shop_id, name, stock_quantity, low_stock_threshold, is_available, price')
+          .eq('shop_id', shop.id)
+          .not('stock_quantity', 'is', null),
+        fetchPeriodOrders(shop.id, boundaries),
+      ])
 
-    if (ordersRes.error) captureException(ordersRes.error, { where: 'DashboardHome.orders' })
+      if (lowStockRes.error) captureException(lowStockRes.error, { where: 'DashboardHome.menuItems' })
+      if (ordersRes.error) captureException(ordersRes.error, { where: 'DashboardHome.orders' })
 
-    const allTracked = (lowStockRes.data as MenuItem[]) || []
-    setLowStockItems(allTracked.filter((i) => i.stock_quantity !== null && i.stock_quantity <= i.low_stock_threshold))
+      const allTracked = (lowStockRes.data as MenuItem[]) || []
+      setLowStockItems(allTracked.filter((i) => i.stock_quantity !== null && i.stock_quantity <= i.low_stock_threshold))
 
-    const ordersList = ordersRes.data
-    setAnalytics(processAnalytics(ordersList, boundaries))
-    setLoading(false)
+      const ordersList = ordersRes.data
+      setAnalytics(processAnalytics(ordersList, boundaries))
+    } catch (err) {
+      // A network failure shouldn't leave the dashboard (and the Refresh button) stuck loading forever.
+      captureException(err, { where: 'DashboardHome.fetchData' })
+    } finally {
+      setLoading(false)
+    }
   }, [shop, timeRange, selectedDailyDate, selectedWeekStart, selectedMonth, selectedYear])
 
   useEffect(() => { fetchDataRef.current = fetchData }, [fetchData])
 
   const debouncedRefresh = useDebouncedCallback((run: () => void) => run(), 400)
+
+  const handleReset = useCallback(() => {
+    const now = new Date()
+    setTimeRange('weekly')
+    setSelectedDailyDate(localDateKey(now))
+    setSelectedWeekStart(localDateKey(startOfWeekLocal(now)))
+    setSelectedMonth(monthKey(now))
+    setSelectedYear(now.getFullYear())
+    setOpenPicker(null)
+  }, [])
+
 
   const today = new Date()
   const todayKey = localDateKey(today)
@@ -267,7 +306,7 @@ export default function DashboardHome() {
     },
     {
       label: 'Order Completion Rate',
-      value: `${analytics?.completionRate || 100}%`,
+      value: analytics ? `${analytics.completionRate}%` : '0%',
       icon: Percent,
       color: 'text-purple-600 dark:text-purple-400',
       bg: 'bg-purple-50 dark:bg-purple-900/30',
@@ -285,55 +324,144 @@ export default function DashboardHome() {
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           {/* Time range selector */}
-          <div ref={rangeSelectorRef} className="relative flex flex-wrap items-center gap-1 bg-gray-100 dark:bg-slate-800 p-1 rounded-xl">
-            <button
-              onClick={() => selectPeriod('daily')}
-              aria-haspopup="true"
-              aria-expanded={openPicker === 'daily'}
-              className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                timeRange === 'daily'
-                  ? 'bg-white dark:bg-slate-700 text-orange-600 dark:text-orange-400 shadow-sm'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-              }`}
-            >
-              {selectedDailyDate === todayKey ? 'Daily' : selectedDailyLabel}
-              <ChevronDown size={12} className={`transition-transform ${openPicker === 'daily' ? 'rotate-180' : ''}`} />
-            </button>
-            <button
-              onClick={() => selectPeriod('weekly')}
-              aria-haspopup="true"
-              aria-expanded={openPicker === 'weekly'}
-              className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                timeRange === 'weekly'
-                  ? 'bg-white dark:bg-slate-700 text-orange-600 dark:text-orange-400 shadow-sm'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-              }`}
-            >
-              {selectedWeekStart === currentWeekKey ? 'Weekly' : selectedWeekLabel}
-              <ChevronDown size={12} className={`transition-transform ${openPicker === 'weekly' ? 'rotate-180' : ''}`} />
-            </button>
-            <button
-              onClick={() => selectPeriod('monthly')}
-              aria-haspopup="true"
-              aria-expanded={openPicker === 'monthly'}
-              className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                timeRange === 'monthly'
-                  ? 'bg-white dark:bg-slate-700 text-orange-600 dark:text-orange-400 shadow-sm'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-              }`}
-            >
-              {selectedMonth === currentMonthKey ? 'Monthly' : selectedMonthShortLabel}
-              <ChevronDown size={12} className={`transition-transform ${openPicker === 'monthly' ? 'rotate-180' : ''}`} />
-            </button>
-            <button
-              onClick={() => selectPeriod('yearly')}
-              aria-haspopup="true"
-              aria-expanded={openPicker === 'yearly'}
-              className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${timeRange === 'yearly' ? 'bg-white dark:bg-slate-700 text-orange-600 dark:text-orange-400 shadow-sm' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`}
-            >
-              {selectedYear === currentYear ? 'Yearly' : String(selectedYear)}
-              <ChevronDown size={12} className={`transition-transform ${openPicker === 'yearly' ? 'rotate-180' : ''}`} />
-            </button>
+          <div ref={rangeSelectorRef} className="relative flex flex-wrap items-center gap-2">
+            {/* Daily split button */}
+            <div className={`flex items-center rounded-lg text-xs font-semibold transition-all overflow-hidden border ${
+              timeRange === 'daily'
+                ? 'bg-white dark:bg-slate-700 text-orange-600 dark:text-orange-400 border-orange-300 dark:border-orange-500 shadow-sm'
+                : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-slate-700 hover:border-gray-300 dark:hover:border-slate-600'
+            }`}>
+              <button
+                onClick={() => selectPeriodLabel('daily')}
+                className={`px-3 py-1.5 transition-colors ${
+                  timeRange === 'daily'
+                    ? 'hover:bg-orange-50 dark:hover:bg-slate-600'
+                    : 'hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-slate-700'
+                }`}
+              >
+                {timeRange === 'daily'
+                  ? (selectedDailyDate === todayKey ? 'Daily' : selectedDailyLabel)
+                  : 'Daily'}
+              </button>
+              <span className={`w-px self-stretch ${timeRange === 'daily' ? 'bg-orange-200 dark:bg-orange-500/40' : 'bg-gray-200 dark:bg-slate-600'}`} />
+              <button
+                onClick={() => selectPeriodChevron('daily')}
+                aria-label="Choose a date"
+                aria-haspopup="true"
+                aria-expanded={openPicker === 'daily'}
+                className={`px-1.5 py-1.5 transition-colors ${
+                  timeRange === 'daily'
+                    ? 'hover:bg-orange-50 dark:hover:bg-slate-600'
+                    : 'hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-slate-700'
+                }`}
+              >
+                <ChevronDown size={12} className={`transition-transform ${openPicker === 'daily' ? 'rotate-180' : ''}`} />
+              </button>
+            </div>
+
+            {/* Weekly split button */}
+            <div className={`flex items-center rounded-lg text-xs font-semibold transition-all overflow-hidden border ${
+              timeRange === 'weekly'
+                ? 'bg-white dark:bg-slate-700 text-orange-600 dark:text-orange-400 border-orange-300 dark:border-orange-500 shadow-sm'
+                : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-slate-700 hover:border-gray-300 dark:hover:border-slate-600'
+            }`}>
+              <button
+                onClick={() => selectPeriodLabel('weekly')}
+                className={`px-3 py-1.5 transition-colors ${
+                  timeRange === 'weekly'
+                    ? 'hover:bg-orange-50 dark:hover:bg-slate-600'
+                    : 'hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-slate-700'
+                }`}
+              >
+                {timeRange === 'weekly'
+                  ? (selectedWeekStart === currentWeekKey ? 'Weekly' : selectedWeekLabel)
+                  : 'Weekly'}
+              </button>
+              <span className={`w-px self-stretch ${timeRange === 'weekly' ? 'bg-orange-200 dark:bg-orange-500/40' : 'bg-gray-200 dark:bg-slate-600'}`} />
+              <button
+                onClick={() => selectPeriodChevron('weekly')}
+                aria-label="Choose a week"
+                aria-haspopup="true"
+                aria-expanded={openPicker === 'weekly'}
+                className={`px-1.5 py-1.5 transition-colors ${
+                  timeRange === 'weekly'
+                    ? 'hover:bg-orange-50 dark:hover:bg-slate-600'
+                    : 'hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-slate-700'
+                }`}
+              >
+                <ChevronDown size={12} className={`transition-transform ${openPicker === 'weekly' ? 'rotate-180' : ''}`} />
+              </button>
+            </div>
+
+            {/* Monthly split button */}
+            <div className={`flex items-center rounded-lg text-xs font-semibold transition-all overflow-hidden border ${
+              timeRange === 'monthly'
+                ? 'bg-white dark:bg-slate-700 text-orange-600 dark:text-orange-400 border-orange-300 dark:border-orange-500 shadow-sm'
+                : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-slate-700 hover:border-gray-300 dark:hover:border-slate-600'
+            }`}>
+              <button
+                onClick={() => selectPeriodLabel('monthly')}
+                className={`px-3 py-1.5 transition-colors ${
+                  timeRange === 'monthly'
+                    ? 'hover:bg-orange-50 dark:hover:bg-slate-600'
+                    : 'hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-slate-700'
+                }`}
+              >
+                {timeRange === 'monthly'
+                  ? (selectedMonth === currentMonthKey ? 'Monthly' : selectedMonthShortLabel)
+                  : 'Monthly'}
+              </button>
+              <span className={`w-px self-stretch ${timeRange === 'monthly' ? 'bg-orange-200 dark:bg-orange-500/40' : 'bg-gray-200 dark:bg-slate-600'}`} />
+              <button
+                onClick={() => selectPeriodChevron('monthly')}
+                aria-label="Choose a month"
+                aria-haspopup="true"
+                aria-expanded={openPicker === 'monthly'}
+                className={`px-1.5 py-1.5 transition-colors ${
+                  timeRange === 'monthly'
+                    ? 'hover:bg-orange-50 dark:hover:bg-slate-600'
+                    : 'hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-slate-700'
+                }`}
+              >
+                <ChevronDown size={12} className={`transition-transform ${openPicker === 'monthly' ? 'rotate-180' : ''}`} />
+              </button>
+            </div>
+
+            {/* Yearly split button */}
+            <div className={`flex items-center rounded-lg text-xs font-semibold transition-all overflow-hidden border ${
+              timeRange === 'yearly'
+                ? 'bg-white dark:bg-slate-700 text-orange-600 dark:text-orange-400 border-orange-300 dark:border-orange-500 shadow-sm'
+                : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-slate-700 hover:border-gray-300 dark:hover:border-slate-600'
+            }`}>
+              <button
+                onClick={() => selectPeriodLabel('yearly')}
+                className={`px-3 py-1.5 transition-colors ${
+                  timeRange === 'yearly'
+                    ? 'hover:bg-orange-50 dark:hover:bg-slate-600'
+                    : 'hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-slate-700'
+                }`}
+              >
+                {timeRange === 'yearly'
+                  ? (selectedYear === currentYear ? 'Yearly' : String(selectedYear))
+                  : 'Yearly'}
+              </button>
+              <span className={`w-px self-stretch ${timeRange === 'yearly' ? 'bg-orange-200 dark:bg-orange-500/40' : 'bg-gray-200 dark:bg-slate-600'}`} />
+              <button
+                onClick={() => selectPeriodChevron('yearly')}
+                aria-label="Choose a year"
+                aria-haspopup="true"
+                aria-expanded={openPicker === 'yearly'}
+                className={`px-1.5 py-1.5 transition-colors ${
+                  timeRange === 'yearly'
+                    ? 'hover:bg-orange-50 dark:hover:bg-slate-600'
+                    : 'hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-slate-700'
+                }`}
+              >
+                <ChevronDown size={12} className={`transition-transform ${openPicker === 'yearly' ? 'rotate-180' : ''}`} />
+              </button>
+            </div>
+
+
             {openPicker === 'daily' && (
               <div className="absolute left-0 top-full mt-2 z-50 w-72 p-4 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl shadow-xl space-y-3">
                 <p className="text-xs font-semibold text-gray-700 dark:text-gray-300">Choose a date</p>
@@ -514,8 +642,8 @@ export default function DashboardHome() {
               </div>
             )}
           </div>
-          <Button variant="outline" size="sm" onClick={fetchData} disabled={loading} className="gap-1.5 text-sm">
-            <RefreshCw size={15} className={loading ? 'animate-spin' : ''} /> Refresh
+          <Button variant="outline" size="sm" onClick={handleReset} disabled={loading} className="gap-1.5 text-sm">
+            <RotateCcw size={15} className={loading ? 'animate-spin' : ''} /> Reset
           </Button>
         </div>
       </div>
@@ -800,7 +928,7 @@ function processAnalytics(orders: AnalyticsOrder[], boundaries: PeriodBoundaries
   const previousRevenue = previousOrders.filter(isCompleted).reduce((sum, o) => sum + (o.total || 0), 0)
 
   const aov = completedCurrent.length > 0 ? Math.round((periodRevenue / completedCurrent.length) * 100) / 100 : 0
-  const completionRate = currentOrders.length > 0 ? Math.round((completedCurrent.length / currentOrders.length) * 100) : 100
+  const completionRate = currentOrders.length > 0 ? Math.round((completedCurrent.length / currentOrders.length) * 100) : 0
 
   let revenueGrowth = 0
   if (previousRevenue > 0) {
